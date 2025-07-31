@@ -26,10 +26,6 @@ hyper-kvasir-segmentation.zip
 logs/
 runs/
 
-# Jupyter run time
-*.ipynb
-.ipynb_checkpoints/
-
 # secrets
 .envrc
 .env.*
