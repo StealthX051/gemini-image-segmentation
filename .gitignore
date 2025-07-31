@@ -1,0 +1,35 @@
+# ---- venv / conda ----
+.env
+.venv/
+env/
+*.conda
+*.egg-info/
+__pycache__/
+
+# VS Code settings & misc IDE junk
+.vscode/
+ipynb_checkpoints/
+*.code-workspace
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Data & artefacts
+# comment these out if you DO want to version-control them
+segmented-images/
+hyper-kvasir-segmentation.zip
+*.png
+*.jpg
+*.jpeg
+*.npz
+logs/
+runs/
+
+# Jupyter run time
+*.ipynb
+.ipynb_checkpoints/
+
+# secrets
+.envrc
+.env.*
