@@ -18,6 +18,7 @@ Thumbs.db
 # Data & artefacts
 # comment these out if you DO want to version-control them
 segmented-images/
+data/
 hyper-kvasir-segmentation.zip
 *.png
 *.jpg
