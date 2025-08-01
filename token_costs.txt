@@ -1,9 +1,12 @@
 Polyp Runs (hyper-kvasir-segmentation):
-Gemini 2.5 Pro 1000 Images 2340 7/31/25: 311.33k tokens
-Gemini 2.5 Flash 1000 Images 2140 7/31/25: 329.64k tokens
-Gemini 2.5 Flash-lite 1000 Images 2210 7/31/25: 314.82k tokens
+Gemini 2.5 Pro 1000 Images - 2340 7/31/25: 311.33k tokens
+Gemini 2.5 Flash 1000 Images - 2140 7/31/25: 329.64k tokens
+Gemini 2.5 Flash-lite 1000 Images -  2210 7/31/25: 314.82k tokens
 
 Fundoscopic Runs (REFUGE2)
+Gemini 2.5 Pro 1200 Images - : 
+Gemini 2.5 Flash 1200 Images - 0220 8/1/25 : Pre-Run: 330.63k Post-Run: 733.83k = 403.2k
+Gemini 2.5 Flash-lite 1200 Images - 2: 
 
 Derm Runs 
 ISIC 2017
