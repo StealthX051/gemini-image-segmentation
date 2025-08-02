@@ -25,7 +25,16 @@ Gemini 2.5 Flash-lite - 0200 8/2/25 : Pre-Run: 1.406m  Post-Run: 1.473m = 67k
 
 CXR (Pneumothorax) - SLIM-ACR (2379 Images - Postive Cases)
 Gemini 2.5 Flash - 1340 8/2/25: Pre-Run: 0.017m  Post-Run: 0.797m  = 780k
-Gemini 2.5 Flash-lite - : 
-
+Gemini 2.5 Flash-lite - 1400 8/2/25: 780k 
 
 Liver and Liver Tumor- LiTS 2017
+Liver (19143 Images)
+Gemini 2.5 Flash (1000 image test) - : Pre-Run: 0.833m Post-Run: 1.157m = 324k
+Gemini 2.5 Flash-lite (1000 image test) - : Pre-Run: 0.780m Post-Run: 1.105m = 325k 
+
+Liver Tumor (7114 Images)
+Gemini 2.5 Flash (1000 image test) - : Pre-Run: 1.157m Post-Run: = 
+Gemini 2.5 Flash-lite (1000 image test) - : Pre-Run: 1.105m Post-Run: = 
+
+Notes:
+Even after disabling safety filters, need to prompt to get around safety refusals. For example, using the term "liver mass" instead of tumor. 
