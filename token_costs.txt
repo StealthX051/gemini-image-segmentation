@@ -14,17 +14,18 @@ Gemini 2.5 Pro 2750 Images - : Pre: 10k DNF
 Gemini 2.5 Flash 2750 Images - 1930 8/1/25: Pre-Run: 19.71k  Post-Run: 892.13 = 872.42k
 Gemini 2.5 Flash-lite 2750 Images - 8/1/25: Pre-Run: 403.5k Post-Run: 1.264m = 860.5 k
 
-Breast Ultrasound - BUSI (Benign and Malignant)
+Breast Ultrasound - BUSI (Benign and Malignant) (647 Images)
 Benign (437 images)
-Gemini 2.5 Pro - : Pre: 10k
 Gemini 2.5 Flash - 0200 8/2/25: Pre-Run: 910k  Post-Run: 1.048m = 138k 
 Gemini 2.5 Flash-lite - : Pre-Run: 1.264m Post-Run: 1.406m = 142k
 
 Malignant (210 images)
-Gemini 2.5 Pro - : Pre: 10k
 Gemini 2.5 Flash - 0220 8/2/25 : Pre-Run: 1.048m  Post-Run: 1.115m = 67k
 Gemini 2.5 Flash-lite - 0200 8/2/25 : Pre-Run: 1.406m  Post-Run: 1.473m = 67k
 
-CXR (Pneumothorax) - SLIM-ACR
+CXR (Pneumothorax) - SLIM-ACR (2379 Images - Postive Cases)
+Gemini 2.5 Flash - 1340 8/2/25: Pre-Run: 0.017m  Post-Run: 0.797m  = 780k
+Gemini 2.5 Flash-lite - : 
+
 
 Liver and Liver Tumor- LiTS 2017
