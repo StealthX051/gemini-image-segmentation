@@ -4,9 +4,22 @@ Gemini 2.5 Flash 1000 Images - 2140 7/31/25: 329.64k tokens
 Gemini 2.5 Flash-lite 1000 Images -  2210 7/31/25: 314.82k tokens
 
 Fundoscopic Runs (REFUGE2)
-Gemini 2.5 Pro 1200 Images - : Pre-Run 55.18k
+Gemini 2.5 Pro 1200 Images - 1445 8/1/25: Pre-Run 58k: DNF - errors out at about 126 or 4
 Gemini 2.5 Flash 1200 Images - 0220 8/1/25: Pre-Run: 330.63k Post-Run: 733.83k = 403.2k
 Gemini 2.5 Flash-lite 1200 Images - 1320 8/1/25: 403.2k tokens
 
-Derm Runs 
-ISIC 2017
+Derm Runs (2750 images)
+ISIC 2017 Part 1
+Gemini 2.5 Pro 2750 Images - : Pre: 10k
+Gemini 2.5 Flash 2750 Images - 1930 8/1/25: Pre-Run: 19.71k  Post-Run: 892.13 = 872.42k
+Gemini 2.5 Flash-lite 2750 Images - : Pre-Run: 403.5k Post-Run: 1.264m = 860.5 k
+
+CXR (Pneumothorax) SLIM-ACR
+
+Breast Ultrasound - BUSI (Benign and Malignant)
+Benign (437 images)
+Gemini 2.5 Pro - : Pre: 10k
+Gemini 2.5 Flash - : Pre-Run: 91k  Post-Run: 1.048m = 957k tokens
+Gemini 2.5 Flash-lite - : Pre-Run: 1.264m Post-Run: = 
+
+Liver and Liver Tumor (LiTS 2017)
