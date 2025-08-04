@@ -8,8 +8,13 @@ dependencies:
   - scikit-image
   - matplotlib
   - pillow
+  - scikit-learn
+  - scikit-posthocs
   - python-dotenv
+  - pingouin
   - pandas
+  - cliffs_delta
+  - opencv-python
   # ---- utilities ----
   - jupyterlab           # optional; comment out if not needed
   - ipywidgets
