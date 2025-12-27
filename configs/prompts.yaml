@@ -1,0 +1,78 @@
+default:
+  model: gemini-2.5-flash
+  prompt_text: |
+    You are a medical image segmentation assistant. Return a JSON list of objects with fields:
+    - label: the structure name
+    - box_2d: bounding box [y0, x0, y1, x1] scaled 0-1000
+    - mask: base64 PNG for the object mask within the bounding box
+  temperature: 0.5
+  thinking_budget: 0
+
+polyp:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Give the segmentation masks for colorectal polyp. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use descriptive labels.
+  temperature: 0.5
+  thinking_budget: 0
+
+optic_disc_cup:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Give the segmentation masks for the optic disc and the optic cup in this retinal fundus image. Output a JSON list of two segmentation masks. One entry should have the label "optic disc" and the other "optic cup". Each entry must contain the 2D bounding box in "box_2d", the segmentation mask in "mask", and the text label in "label".
+  temperature: 0.5
+  thinking_budget: 0
+
+derm_lesion:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Give the segmentation masks for all skin lesions. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
+  temperature: 0.5
+  thinking_budget: 0
+
+busi_mass:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Give the segmentation mask for the breast mass in this ultrasound image. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use a descriptive label like "mass".
+  temperature: 0.5
+  thinking_budget: 0
+
+pneumothorax_cxr:
+  model: gemini-2.5-flash
+  prompt_text: |
+    In this chest x-ray, give the segmentation mask for the pneumothorax. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "pneumothorax".
+  temperature: 0.5
+  thinking_budget: 0
+
+lits_liver:
+  model: gemini-2.5-flash
+  prompt_text: |
+    In this slice of an abdominal CT, give the segmentation mask for the liver. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "liver".
+  temperature: 0.5
+  thinking_budget: 0
+
+lits_liver_mass:
+  model: gemini-2.5-flash
+  prompt_text: |
+    In this slice of an abdominal CT, give the segmentation mask for the liver mass. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "liver mass".
+  temperature: 0.5
+  thinking_budget: 0
+
+laparoscopy_uterus_tools:
+  model: gemini-2.5-flash
+  prompt_text: |
+    In this video frame from a laparoscopic hysterectomy, provide segmentation masks for the anatomy and surgical tools. Output a JSON list of segmentation masks.
+    - Use the label "uterus" for the uterus.
+    - Use the label "surgical tool" for any and all surgical instruments, including grasping forceps, LigaSure, hooks, and their shafts and manipulators. Combine all instrument parts into one category.
+    Each JSON entry must contain the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
+  temperature: 0.5
+  thinking_budget: 0
+
+histopathology:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Give the segmentation masks for all tissue regions of diagnostic interest in this histopathology slide.
+    Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d",
+    the segmentation mask in key "mask", and the text label in the key "label". Use descriptive labels such as
+    "tumor", "stroma", "necrosis", or other relevant structures present in the field of view.
+  temperature: 0.5
+  thinking_budget: 0
