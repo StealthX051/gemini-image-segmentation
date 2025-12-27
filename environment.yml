@@ -8,6 +8,7 @@ dependencies:
   - scikit-image
   - matplotlib
   - pillow
+  - pyyaml
   - scikit-learn
   - scikit-posthocs
   - python-dotenv
