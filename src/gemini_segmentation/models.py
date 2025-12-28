@@ -546,3 +546,30 @@ class ReplicateSegmenter:
             return [], 0.0, False, True, []
         masks, latency, parse_success, raw_items = result
         return masks, latency, parse_success, False, raw_items
+
+
+class Sa2VAReplicateSegmenter(ReplicateSegmenter):
+    """Compatibility wrapper for Sa2VA Replicate deployments."""
+
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        model_version: str,
+        instruction: str,
+        timeout_s: float = 60.0,
+        targets: Optional[Sequence[str]] = None,
+        instructions: Optional[Dict[str, str]] = None,
+        cache_dir: Optional[Path] = None,
+        max_dim: int = 1024,
+    ) -> None:
+        self.model_name = model_name
+        super().__init__(
+            model_version=model_version,
+            instruction=instruction,
+            timeout_s=timeout_s,
+            targets=targets,
+            instructions=instructions,
+            cache_dir=cache_dir,
+            max_dim=max_dim,
+        )
