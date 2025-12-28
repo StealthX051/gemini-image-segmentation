@@ -4,7 +4,7 @@ import tempfile
 import types
 from pathlib import Path
 from types import SimpleNamespace
-from unittest import mock, TestCase
+from unittest import TestCase, mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))
