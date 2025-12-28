@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+import threading
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar
+from urllib.error import URLError
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 from google import genai
 from google.genai.types import GenerateContentConfig, Part, SafetySetting, ThinkingConfig
@@ -14,6 +19,33 @@ from PIL import Image
 
 from .io import encode_mask_to_b64, parse_segmentation_masks
 from .types import SegmentationMask
+
+T = TypeVar("T")
+
+
+def _run_with_timeout(
+    func: Callable[[], T], timeout_s: float, timeout_msg: str
+) -> tuple[T | None, bool]:
+    """Execute a callable with a soft timeout using a daemon thread."""
+
+    result_holder: List[T] = []
+    error_holder: List[BaseException] = []
+
+    def target() -> None:
+        try:
+            result_holder.append(func())
+        except BaseException as exc:  # pragma: no cover - passthrough for caller handling
+            error_holder.append(exc)
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_s)
+    if thread.is_alive():
+        logging.error(timeout_msg, timeout_s)
+        return None, True
+    if error_holder:
+        raise error_holder[0]
+    return result_holder[0] if result_holder else None, False
 
 
 class GeminiSegmenter:
@@ -90,14 +122,13 @@ class GeminiSegmenter:
         Returns masks, latency, parse_success, timed_out.
         """
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(self._call_model, image_obj)
-            try:
-                masks, latency, parse_success, raw_items = future.result(timeout=self.timeout_s)
-                return masks, latency, parse_success, False, raw_items
-            except TimeoutError:
-                logging.error("Segmentation call exceeded timeout of %.1fs", self.timeout_s)
-                return [], 0.0, False, True, []
+        result, timed_out = _run_with_timeout(
+            lambda: self._call_model(image_obj), self.timeout_s, "Segmentation call exceeded timeout of %.1fs"
+        )
+        if timed_out or result is None:
+            return [], 0.0, False, True, []
+        masks, latency, parse_success, raw_items = result
+        return masks, latency, parse_success, False, raw_items
 
 
 def _require_cairosvg():
@@ -307,11 +338,211 @@ class MoondreamSegmenter:
     def segment(
         self, image_obj: Image.Image
     ) -> Tuple[list[SegmentationMask], float, bool, bool, list[dict]]:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(self._call_model, image_obj)
+        result, timed_out = _run_with_timeout(
+            lambda: self._call_model(image_obj),
+            self.timeout_s,
+            "Moondream segmentation call exceeded timeout of %.1fs",
+        )
+        if timed_out or result is None:
+            return [], 0.0, False, True, []
+        masks, latency, parse_success, raw_items = result
+        return masks, latency, parse_success, False, raw_items
+
+
+class ReplicateSegmenter:
+    """Replicate-backed segmenter that mirrors the Gemini output schema."""
+
+    def __init__(
+        self,
+        *,
+        model_version: str,
+        instruction: str,
+        timeout_s: float = 60.0,
+        targets: Optional[Sequence[str]] = None,
+        instructions: Optional[Dict[str, str]] = None,
+        cache_dir: Optional[Path] = None,
+        max_dim: int = 1024,
+    ) -> None:
+        if not model_version:
+            raise ValueError("A Replicate model version is required")
+        self.model_version = model_version
+        self.instruction = instruction
+        self.timeout_s = timeout_s
+        self.targets = list(targets) if targets else [""]
+        self.instructions = dict(instructions) if instructions else {}
+        self.cache_dir = cache_dir
+        self.max_dim = max_dim
+
+        if self.cache_dir:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        token = os.environ.get("REPLICATE_API_TOKEN")
+        if not token:
+            raise ValueError("REPLICATE_API_TOKEN is required for Replicate calls")
+        try:
+            import replicate
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError(
+                "replicate is required for the Replicate provider. Install it via the environment.yml or pip."
+            ) from exc
+
+        self.client = replicate.Client(api_token=token)
+
+    def _prepare_image(self, image_obj: Image.Image) -> Tuple[Image.Image, Tuple[int, int]]:
+        original_width, original_height = image_obj.size
+        img_for_api = image_obj.copy()
+        if img_for_api.height > self.max_dim or img_for_api.width > self.max_dim:
+            img_for_api.thumbnail((self.max_dim, self.max_dim))
+            logging.info(
+                "Resized image from %sx%s to %sx%s for Replicate API call.",
+                original_width,
+                original_height,
+                img_for_api.width,
+                img_for_api.height,
+            )
+        return img_for_api, (original_width, original_height)
+
+    def _download_mask(self, url: str) -> Image.Image | None:
+        cache_path: Path | None = None
+        if self.cache_dir:
+            suffix = Path(urlparse(url).path).suffix or ".png"
+            cache_path = self.cache_dir / f"{hashlib.sha256(url.encode('utf-8')).hexdigest()}{suffix}"
+            if cache_path.exists():
+                try:
+                    return Image.open(cache_path).convert("L")
+                except OSError:
+                    logging.warning("Failed to read cached mask at %s; re-downloading", cache_path)
+
+        try:
+            request = Request(url, headers={"User-Agent": "gemini-segmentation/replicate"})
+            with urlopen(request, timeout=30) as resp:
+                content = resp.read()
+        except URLError:  # pragma: no cover - network failures
+            logging.exception("Failed to download Replicate mask from %s", url)
+            return None
+
+        if cache_path:
             try:
-                masks, latency, parse_success, raw_items = future.result(timeout=self.timeout_s)
-                return masks, latency, parse_success, False, raw_items
-            except TimeoutError:
-                logging.error("Moondream segmentation call exceeded timeout of %.1fs", self.timeout_s)
-                return [], 0.0, False, True, []
+                cache_path.write_bytes(content)
+            except OSError:
+                logging.warning("Failed to write Replicate mask to cache at %s", cache_path)
+
+        try:
+            return Image.open(io.BytesIO(content)).convert("L")
+        except OSError:
+            logging.exception("Downloaded Replicate mask is not a valid image: %s", url)
+            return None
+
+    @staticmethod
+    def _extract_img_url(result: Any) -> str | None:
+        if isinstance(result, str):
+            return result
+        if isinstance(result, dict):
+            return result.get("img") or result.get("image")
+        if isinstance(result, (list, tuple)):
+            for item in result:
+                candidate = ReplicateSegmenter._extract_img_url(item)
+                if candidate:
+                    return candidate
+        return None
+
+    def _segment_single(
+        self,
+        img_bytes: bytes,
+        api_size: Tuple[int, int],
+        original_size: Tuple[int, int],
+        label: str,
+        instruction: str,
+    ) -> Tuple[SegmentationMask | None, Dict[str, Any] | None, bool]:
+        try:
+            result = self.client.run(self.model_version, input={"image": img_bytes, "instruction": instruction})
+            logging.debug("Replicate raw output for '%s': %s", label or instruction, result)
+        except Exception:  # pragma: no cover - network/API failures
+            logging.exception("Replicate segmentation call failed for label '%s'", label)
+            return None, None, False
+
+        img_url = self._extract_img_url(result)
+        if not img_url:
+            logging.warning("Replicate response missing mask URL for label '%s'", label)
+            return None, None, False
+
+        mask_img = self._download_mask(img_url)
+        if mask_img is None:
+            return None, None, False
+
+        api_width, api_height = api_size
+        if mask_img.size != api_size:
+            logging.info(
+                "Resizing Replicate mask from %sx%s to API dimensions %sx%s", *mask_img.size, api_width, api_height
+            )
+            mask_img = mask_img.resize(api_size, resample=Image.Resampling.NEAREST)
+
+        mask_binary = (np.array(mask_img, dtype=np.uint8) > 127).astype(np.uint8) * 255
+        if mask_binary.size == 0 or not mask_binary.any():
+            logging.warning("Replicate mask is empty for label '%s'", label)
+            return None, None, False
+
+        if original_size != api_size:
+            mask_pil = Image.fromarray(mask_binary)
+            mask_full = np.array(mask_pil.resize(original_size, resample=Image.Resampling.NEAREST), dtype=np.uint8)
+        else:
+            mask_full = mask_binary
+
+        coords = np.argwhere(mask_full > 0)
+        if coords.size == 0:
+            logging.warning("Replicate mask had no positive pixels after resizing for label '%s'", label)
+            return None, None, False
+
+        y0, x0 = coords.min(axis=0)[:2]
+        y1, x1 = coords.max(axis=0)[:2]
+        y1 += 1
+        x1 += 1
+
+        width, height = original_size
+        box = _pixel_box_to_gemini_box((x0, y0, x1, y1), width, height)
+        crop = mask_full[y0:y1, x0:x1]
+        raw_item = {"label": label, "box_2d": box, "mask": encode_mask_to_b64(crop)}
+        seg_mask = SegmentationMask(y0=y0, x0=x0, y1=y1, x1=x1, mask=mask_full, label=label)
+        return seg_mask, raw_item, True
+
+    def _call_model(
+        self, image_obj: Image.Image
+    ) -> Tuple[list[SegmentationMask], float, bool, list[dict]]:
+        api_image, original_size = self._prepare_image(image_obj)
+        with io.BytesIO() as img_byte_arr:
+            api_image.save(img_byte_arr, format="JPEG")
+            img_bytes = img_byte_arr.getvalue()
+
+        start_time = datetime.now()
+        masks: List[SegmentationMask] = []
+        raw_items: List[Dict[str, Any]] = []
+        parse_success = True
+        api_size = api_image.size
+        for target_label in self.targets:
+            instr = self.instructions.get(target_label, self.instruction or target_label)
+            seg_mask, raw_item, success = self._segment_single(
+                img_bytes, api_size, original_size, target_label, instr
+            )
+            parse_success = parse_success and success
+            if seg_mask is None or raw_item is None:
+                continue
+            masks.append(seg_mask)
+            raw_items.append(raw_item)
+
+        latency = (datetime.now() - start_time).total_seconds()
+        if not masks:
+            parse_success = False
+        return masks, latency, parse_success, raw_items
+
+    def segment(
+        self, image_obj: Image.Image
+    ) -> Tuple[list[SegmentationMask], float, bool, bool, list[dict]]:
+        result, timed_out = _run_with_timeout(
+            lambda: self._call_model(image_obj),
+            self.timeout_s,
+            "Replicate segmentation call exceeded timeout of %.1fs",
+        )
+        if timed_out or result is None:
+            return [], 0.0, False, True, []
+        masks, latency, parse_success, raw_items = result
+        return masks, latency, parse_success, False, raw_items

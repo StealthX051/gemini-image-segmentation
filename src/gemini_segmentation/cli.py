@@ -43,7 +43,7 @@ from .metrics import (
     upsert_metrics,
     write_summary,
 )
-from .models import GeminiSegmenter, MoondreamSegmenter
+from .models import GeminiSegmenter, MoondreamSegmenter, ReplicateSegmenter
 from .types import PerImageMetrics, SegmentationMask
 
 
@@ -178,6 +178,8 @@ def command_segment(args: argparse.Namespace) -> None:
             raise ValueError(
                 "The number of --replicate-instruction flags must match --replicate-target entries."
             )
+        if not args.replicate_model_version:
+            raise ValueError("--replicate-model-version is required when provider is 'replicate'")
 
     replicate_cache_dir = (
         Path(args.replicate_cache_dir).expanduser().resolve()
@@ -276,8 +278,13 @@ def command_segment(args: argparse.Namespace) -> None:
                     api_key=args.moondream_api_key,
                 )
             elif args.provider == "replicate":
-                raise NotImplementedError(
-                    "Replicate provider is not yet implemented in the CLI segmenter."
+                thread_local.segmenter = ReplicateSegmenter(
+                    model_version=args.replicate_model_version,
+                    instruction=prompt,
+                    timeout_s=args.timeout,
+                    targets=args.replicate_targets,
+                    instructions=replicate_target_instructions,
+                    cache_dir=replicate_cache_dir,
                 )
             else:
                 thread_local.segmenter = GeminiSegmenter(
