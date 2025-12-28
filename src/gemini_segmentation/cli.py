@@ -167,43 +167,63 @@ def command_segment(args: argparse.Namespace) -> None:
         if preset_cfg.get("thinking_budget") is not None:
             args.thinking_budget = int(preset_cfg["thinking_budget"])
 
-    if args.provider == "moondream" and args.model_name == "gemini-2.5-flash":
+    run_id = args.run_id or _default_run_id()
+    model_label = args.replicate_model_version if args.provider == "replicate" else args.model_name
+    paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, model_label, run_id)
+
+    existing_run_config = {}
+    if paths["run_config"].exists():
+        try:
+            existing_run_config = json.loads(paths["run_config"].read_text())
+        except json.JSONDecodeError:
+            logging.warning("Failed to parse existing run_config.json; proceeding with CLI arguments")
+
+    run_provider = existing_run_config.get("provider", args.provider)
+
+    if run_provider == "moondream" and args.model_name == "gemini-2.5-flash":
         args.model_name = "moondream-3"
 
-    if args.provider == "replicate":
-        if args.replicate_instructions and (
-            not args.replicate_targets
-            or len(args.replicate_instructions) != len(args.replicate_targets)
+    replicate_model_version = args.replicate_model_version or existing_run_config.get("replicate_model_version")
+    replicate_targets_arg = args.replicate_targets or existing_run_config.get("replicate_targets")
+    replicate_instructions_arg = args.replicate_instructions or existing_run_config.get("replicate_instructions")
+    replicate_cache_dir = (
+        Path(args.replicate_cache_dir).expanduser().resolve()
+        if args.replicate_cache_dir
+        else Path(existing_run_config["replicate_cache_dir"]).expanduser().resolve()
+        if existing_run_config.get("replicate_cache_dir")
+        else None
+    )
+
+    replicate_target_instructions = None
+    if replicate_instructions_arg and replicate_targets_arg:
+        replicate_target_instructions = {
+            target: instruction
+            for target, instruction in zip(replicate_targets_arg, replicate_instructions_arg)
+        }
+
+    if run_provider == "replicate":
+        if replicate_instructions_arg and (
+            not replicate_targets_arg
+            or len(replicate_instructions_arg) != len(replicate_targets_arg)
         ):
             raise ValueError(
                 "The number of --replicate-instruction flags must match --replicate-target entries."
             )
-        if not args.replicate_model_version:
+        if not replicate_model_version:
             raise ValueError("--replicate-model-version is required when provider is 'replicate'")
 
-    replicate_cache_dir = (
-        Path(args.replicate_cache_dir).expanduser().resolve()
-        if args.replicate_cache_dir
-        else None
-    )
-    replicate_target_instructions = None
-    if args.replicate_instructions and args.replicate_targets:
-        replicate_target_instructions = {
-            target: instruction for target, instruction in zip(args.replicate_targets, args.replicate_instructions)
-        }
+    moondream_targets = args.moondream_targets or existing_run_config.get("moondream_targets") or None
 
-    moondream_targets = args.moondream_targets or None
-
-    run_id = args.run_id or _default_run_id()
-    model_label = args.replicate_model_version if args.provider == "replicate" else args.model_name
-    paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, model_label, run_id)
+    model_label = replicate_model_version if run_provider == "replicate" else args.model_name
+    if model_label != paths["run_dir"].parts[-2]:
+        paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, model_label, run_id)
 
     config = build_run_config(
         dataset_name=args.dataset_name,
         dataset_root=dataset_root,
         prompt=prompt,
         model_name=model_label,
-        provider=args.provider,
+        provider=run_provider,
         thinking_budget=args.thinking_budget,
         temperature=args.temperature,
         timeout_s=args.timeout,
@@ -217,8 +237,8 @@ def command_segment(args: argparse.Namespace) -> None:
         bootstrap_resamples=args.bootstrap_resamples,
         moondream_targets=moondream_targets,
         moondream_endpoint=args.moondream_endpoint,
-        replicate_model_version=args.replicate_model_version,
-        replicate_targets=tuple(args.replicate_targets) if args.replicate_targets else None,
+        replicate_model_version=replicate_model_version,
+        replicate_targets=tuple(replicate_targets_arg) if replicate_targets_arg else None,
         replicate_instructions=replicate_target_instructions,
         replicate_cache_dir=replicate_cache_dir,
     )
@@ -269,7 +289,7 @@ def command_segment(args: argparse.Namespace) -> None:
 
     def get_segmenter() -> SegmenterProtocol:
         if not hasattr(thread_local, "segmenter"):
-            if args.provider == "moondream":
+            if run_provider == "moondream":
                 thread_local.segmenter = MoondreamSegmenter(
                     model_name=args.model_name,
                     prompt=prompt,
@@ -278,14 +298,14 @@ def command_segment(args: argparse.Namespace) -> None:
                     endpoint=args.moondream_endpoint,
                     api_key=args.moondream_api_key,
                 )
-            elif args.provider == "replicate":
-                replicate_model_name = args.replicate_model_version or args.model_name
+            elif run_provider == "replicate":
+                replicate_model_name = replicate_model_version or args.model_name
                 thread_local.segmenter = Sa2VAReplicateSegmenter(
                     model_name=replicate_model_name,
-                    model_version=args.replicate_model_version,
+                    model_version=replicate_model_version or args.model_name,
                     instruction=prompt,
                     timeout_s=args.timeout,
-                    targets=args.replicate_targets,
+                    targets=replicate_targets_arg,
                     instructions=replicate_target_instructions,
                     cache_dir=replicate_cache_dir,
                 )
@@ -333,13 +353,14 @@ def command_segment(args: argparse.Namespace) -> None:
             )
 
             legacy_json_path = None
+            raw_response_payload = raw_items if run_provider == "replicate" else raw_items
             if args.legacy_predictions:
                 legacy_dir = dataset_root / f"predictions_{model_label}"
                 legacy_json_path = legacy_dir / f"{img_name}.json"
-                _write_legacy_prediction(mask_arrays, legacy_json_path, raw_items)
+                _write_legacy_prediction(mask_arrays, legacy_json_path, raw_response_payload)
 
             raw_response_path = paths["raw_responses"] / f"{img_name}.json"
-            raw_response_path.write_text(json.dumps(raw_items if raw_items is not None else []))
+            raw_response_path.write_text(json.dumps(raw_response_payload if raw_response_payload is not None else []))
 
             predictions[img_name] = {
                 "image_name": img_name,
@@ -352,6 +373,7 @@ def command_segment(args: argparse.Namespace) -> None:
                 "metrics": {"iou": iou, "dice": dice, "success": success},
                 "legacy_json_path": str(legacy_json_path) if legacy_json_path else None,
                 "raw_response_path": str(raw_response_path),
+                "provider": run_provider,
             }
 
             write_prediction_jsonl(predictions.values(), paths["predictions_jsonl"], mode="w")
