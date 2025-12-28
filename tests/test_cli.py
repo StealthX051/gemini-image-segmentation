@@ -45,11 +45,12 @@ class PresetBranchParserTests(TestCase):
                 "--prompt-preset",
                 "configs/prompts.yaml",
                 "--preset-branch",
-                "hybrid",
+                "legacy",
             ]
         )
-        self.assertEqual(args.preset_branch, "hybrid")
+        self.assertEqual(args.preset_branch, "legacy")
         self.assertEqual(args.preset_name, "default")
+        self.assertIsNone(args.prompt_family)
 
 
 class CommandSegmentBranchTests(TestCase):
@@ -72,7 +73,7 @@ class CommandSegmentBranchTests(TestCase):
         mock_prepare_dirs,
         *_
     ) -> None:
-        mock_resolve.return_value = "polyp_hybrid"
+        mock_resolve.return_value = "polyp"
         mock_load_preset.return_value = {
             "prompt_text": "prompt",
             "model": "gemini-2.5-flash",
@@ -108,7 +109,7 @@ class CommandSegmentBranchTests(TestCase):
                 prompt_file=None,
                 prompt_preset="configs/prompts.yaml",
                 preset_name="polyp",
-                preset_branch="hybrid",
+                preset_branch="legacy",
                 moondream_targets=None,
                 moondream_endpoint=None,
                 moondream_api_key=None,
@@ -129,12 +130,108 @@ class CommandSegmentBranchTests(TestCase):
                 replicate_targets=None,
                 replicate_instructions=None,
                 replicate_cache_dir=None,
+                prompt_family=None,
             )
 
             command_segment(args)
 
-        mock_resolve.assert_called_once_with("polyp", "hybrid")
-        mock_load_preset.assert_called_once_with(Path("configs/prompts.yaml"), "polyp_hybrid")
+        mock_resolve.assert_called_once_with("polyp", "legacy")
+        mock_load_preset.assert_called_once_with(Path("configs/prompts.yaml"), "polyp")
+
+
+class PromptFamilyTests(TestCase):
+    @mock.patch("gemini_segmentation.cli.build_prompt", return_value="rendered prompt")
+    @mock.patch("gemini_segmentation.cli.dump_run_config")
+    @mock.patch("gemini_segmentation.cli.build_run_config")
+    @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
+    @mock.patch("gemini_segmentation.cli.load_existing_predictions", return_value={})
+    @mock.patch("gemini_segmentation.cli.paired_masks", return_value=[])
+    @mock.patch("gemini_segmentation.cli.sample_images", return_value=[])
+    @mock.patch("gemini_segmentation.cli.read_manifest", return_value=[])
+    @mock.patch("gemini_segmentation.cli._prepare_output_dirs")
+    @mock.patch("gemini_segmentation.cli.load_preset")
+    @mock.patch("gemini_segmentation.cli.resolve_preset_name")
+    @mock.patch("gemini_segmentation.cli.discover_dataset")
+    def test_prompt_family_override(
+        self,
+        mock_discover,
+        mock_resolve,
+        mock_load_preset,
+        mock_prepare_dirs,
+        mock_read_manifest,
+        mock_sample_images,
+        mock_paired_masks,
+        mock_load_existing_predictions,
+        mock_load_metrics,
+        mock_build_run_config,
+        mock_dump_run_config,
+        mock_build_prompt,
+    ) -> None:
+        mock_resolve.return_value = "polyp"
+        mock_load_preset.return_value = {
+            "prompt_task": "polyp",
+            "prompt_family": "label_v1",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dataset_root = Path(tmp_dir)
+            manifest_path = dataset_root / "manifest.txt"
+            masks_dir = dataset_root / "masks"
+            mock_discover.return_value = SimpleNamespace(
+                manifest_path=manifest_path, masks_dir=masks_dir
+            )
+            mock_prepare_dirs.return_value = {
+                "run_dir": Path(tmp_dir) / "run",
+                "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+
+            args = argparse.Namespace(
+                command="segment",
+                dataset_name="polyp",
+                dataset_root=str(dataset_root),
+                manifest=None,
+                provider="gemini",
+                model_name="gemini-2.5-flash",
+                prompt="",
+                prompt_file=None,
+                prompt_preset="configs/prompts.yaml",
+                preset_name="polyp",
+                preset_branch=None,
+                moondream_targets=None,
+                moondream_endpoint=None,
+                moondream_api_key=None,
+                thinking_budget=0,
+                temperature=0.5,
+                timeout=1.0,
+                workers=1,
+                sample_size=None,
+                results_dir=tmp_dir,
+                run_id=None,
+                rate_limit=None,
+                legacy_predictions=False,
+                success_threshold=0.5,
+                bootstrap_method="bca",
+                bootstrap_resamples=5000,
+                dry_run=False,
+                replicate_model_version=None,
+                replicate_targets=None,
+                replicate_instructions=None,
+                replicate_cache_dir=None,
+                prompt_family="desc_neg_v1",
+            )
+
+            command_segment(args)
+
+        mock_resolve.assert_called_once_with("polyp", None)
+        mock_load_preset.assert_called_once_with(Path("configs/prompts.yaml"), "polyp")
+        mock_build_prompt.assert_called_once_with("polyp", "desc_neg_v1")
 
 
 if __name__ == "__main__":

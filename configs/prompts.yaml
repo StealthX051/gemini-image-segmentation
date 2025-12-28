@@ -1,150 +1,213 @@
+defaults: &defaults
+  model: gemini-2.5-flash
+  temperature: 0.5
+  thinking_budget: 0
+
+# Default catch-all prompts
 default:
-  model: gemini-2.5-flash
-  prompt_text: |
-    You are a medical image segmentation assistant. Return a JSON list of objects with fields:
-    - label: the structure name
-    - box_2d: bounding box [y0, x0, y1, x1] scaled 0-1000
-    - mask: base64 PNG for the object mask within the bounding box
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: default
+  prompt_family: desc_v1
 
+default_label_v1:
+  <<: *defaults
+  prompt_task: default
+  prompt_family: label_v1
+
+default_desc_v1:
+  <<: *defaults
+  prompt_task: default
+  prompt_family: desc_v1
+
+default_desc_neg_v1:
+  <<: *defaults
+  prompt_task: default
+  prompt_family: desc_neg_v1
+
+# Polyp
 polyp:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Give the segmentation masks for colorectal polyp. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use descriptive labels.
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: polyp
+  prompt_family: desc_v1
 
-polyp_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Use a hybrid expression to reason about where each colorectal polyp is located, then output the final result as pure JSON.
-    Return a list of objects with keys "box_2d", "mask", and "label" for every polyp you find. Do not include any text outside the JSON payload.
-  temperature: 0.5
-  thinking_budget: 0
+polyp_label_v1:
+  <<: *defaults
+  prompt_task: polyp
+  prompt_family: label_v1
 
+polyp_desc_v1:
+  <<: *defaults
+  prompt_task: polyp
+  prompt_family: desc_v1
+
+polyp_desc_neg_v1:
+  <<: *defaults
+  prompt_task: polyp
+  prompt_family: desc_neg_v1
+
+# Optic disc / cup
 optic_disc_cup:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Give the segmentation masks for the optic disc and the optic cup in this retinal fundus image. Output a JSON list of two segmentation masks. One entry should have the label "optic disc" and the other "optic cup". Each entry must contain the 2D bounding box in "box_2d", the segmentation mask in "mask", and the text label in "label".
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: optic_disc_cup
+  prompt_family: desc_v1
 
-optic_disc_cup_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Using a hybrid expression, first identify the optic disc and optic cup locations, then provide only the JSON output.
-    Return two entries labeled "optic disc" and "optic cup" with keys "box_2d", "mask", and "label" and no additional prose.
-  temperature: 0.5
-  thinking_budget: 0
+optic_disc_cup_label_v1:
+  <<: *defaults
+  prompt_task: optic_disc_cup
+  prompt_family: label_v1
 
+optic_disc_cup_desc_v1:
+  <<: *defaults
+  prompt_task: optic_disc_cup
+  prompt_family: desc_v1
+
+optic_disc_cup_desc_neg_v1:
+  <<: *defaults
+  prompt_task: optic_disc_cup
+  prompt_family: desc_neg_v1
+
+# Dermatology
 derm_lesion:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Give the segmentation masks for all skin lesions. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: derm_lesion
+  prompt_family: desc_v1
 
-derm_lesion_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Apply a hybrid expression to locate every skin lesion, then respond with JSON only.
-    Each object must include "box_2d", "mask", and a descriptive "label" for the lesion; omit any explanations outside the JSON list.
-  temperature: 0.5
-  thinking_budget: 0
+derm_lesion_label_v1:
+  <<: *defaults
+  prompt_task: derm_lesion
+  prompt_family: label_v1
 
+derm_lesion_desc_v1:
+  <<: *defaults
+  prompt_task: derm_lesion
+  prompt_family: desc_v1
+
+derm_lesion_desc_neg_v1:
+  <<: *defaults
+  prompt_task: derm_lesion
+  prompt_family: desc_neg_v1
+
+# BUSI breast ultrasound
 busi_mass:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Give the segmentation mask for the breast mass in this ultrasound image. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use a descriptive label like "mass".
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: busi_mass
+  prompt_family: desc_v1
 
-busi_mass_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Use a hybrid expression to localize the breast mass in this ultrasound image and then emit JSON only.
-    Provide a single entry with keys "box_2d", "mask", and a descriptive "label" for the mass; no extra narrative.
-  temperature: 0.5
-  thinking_budget: 0
+busi_mass_label_v1:
+  <<: *defaults
+  prompt_task: busi_mass
+  prompt_family: label_v1
 
+busi_mass_desc_v1:
+  <<: *defaults
+  prompt_task: busi_mass
+  prompt_family: desc_v1
+
+busi_mass_desc_neg_v1:
+  <<: *defaults
+  prompt_task: busi_mass
+  prompt_family: desc_neg_v1
+
+# Chest X-ray pneumothorax
 pneumothorax_cxr:
-  model: gemini-2.5-flash
-  prompt_text: |
-    In this chest x-ray, give the segmentation mask for the pneumothorax. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "pneumothorax".
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: pneumothorax_cxr
+  prompt_family: desc_v1
 
-pneumothorax_cxr_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Follow a hybrid expression: reason about where pneumothorax regions appear in this chest x-ray, then reply with JSON only.
-    Return entries labeled "pneumothorax" with "box_2d", "mask", and "label" keys; do not add surrounding text.
-  temperature: 0.5
-  thinking_budget: 0
+pneumothorax_cxr_label_v1:
+  <<: *defaults
+  prompt_task: pneumothorax_cxr
+  prompt_family: label_v1
 
+pneumothorax_cxr_desc_v1:
+  <<: *defaults
+  prompt_task: pneumothorax_cxr
+  prompt_family: desc_v1
+
+pneumothorax_cxr_desc_neg_v1:
+  <<: *defaults
+  prompt_task: pneumothorax_cxr
+  prompt_family: desc_neg_v1
+
+# LiTS liver
 lits_liver:
-  model: gemini-2.5-flash
-  prompt_text: |
-    In this slice of an abdominal CT, give the segmentation mask for the liver. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "liver".
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: lits_liver
+  prompt_family: desc_v1
 
-lits_liver_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Use a hybrid expression to focus on the liver region in this abdominal CT slice.
-    Output JSON only with one object labeled "liver" containing "box_2d", "mask", and "label"; avoid any other commentary.
-  temperature: 0.5
-  thinking_budget: 0
+lits_liver_label_v1:
+  <<: *defaults
+  prompt_task: lits_liver
+  prompt_family: label_v1
+
+lits_liver_desc_v1:
+  <<: *defaults
+  prompt_task: lits_liver
+  prompt_family: desc_v1
+
+lits_liver_desc_neg_v1:
+  <<: *defaults
+  prompt_task: lits_liver
+  prompt_family: desc_neg_v1
 
 lits_liver_mass:
-  model: gemini-2.5-flash
-  prompt_text: |
-    In this slice of an abdominal CT, give the segmentation mask for the liver mass. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "liver mass".
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: lits_liver_mass
+  prompt_family: desc_v1
 
-lits_liver_mass_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Apply a hybrid expression to find liver masses in this abdominal CT slice and return JSON only.
-    Each entry must have "box_2d", "mask", and the label "liver mass"; do not include narrative text outside the JSON array.
-  temperature: 0.5
-  thinking_budget: 0
+lits_liver_mass_label_v1:
+  <<: *defaults
+  prompt_task: lits_liver_mass
+  prompt_family: label_v1
 
+lits_liver_mass_desc_v1:
+  <<: *defaults
+  prompt_task: lits_liver_mass
+  prompt_family: desc_v1
+
+lits_liver_mass_desc_neg_v1:
+  <<: *defaults
+  prompt_task: lits_liver_mass
+  prompt_family: desc_neg_v1
+
+# Laparoscopy
 laparoscopy_uterus_tools:
-  model: gemini-2.5-flash
-  prompt_text: |
-    In this video frame from a laparoscopic hysterectomy, provide segmentation masks for the anatomy and surgical tools. Output a JSON list of segmentation masks.
-    - Use the label "uterus" for the uterus.
-    - Use the label "surgical tool" for any and all surgical instruments, including grasping forceps, LigaSure, hooks, and their shafts and manipulators. Combine all instrument parts into one category.
-    Each JSON entry must contain the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: laparoscopy_uterus_tools
+  prompt_family: desc_v1
 
-laparoscopy_uterus_tools_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Using a hybrid expression, identify the uterus and all surgical tools in this laparoscopic frame, then reply only with JSON.
-    Produce entries labeled "uterus" and "surgical tool" (one combined category) with keys "box_2d", "mask", and "label"; omit any other output.
-  temperature: 0.5
-  thinking_budget: 0
+laparoscopy_uterus_tools_label_v1:
+  <<: *defaults
+  prompt_task: laparoscopy_uterus_tools
+  prompt_family: label_v1
 
+laparoscopy_uterus_tools_desc_v1:
+  <<: *defaults
+  prompt_task: laparoscopy_uterus_tools
+  prompt_family: desc_v1
+
+laparoscopy_uterus_tools_desc_neg_v1:
+  <<: *defaults
+  prompt_task: laparoscopy_uterus_tools
+  prompt_family: desc_neg_v1
+
+# Histopathology
 histopathology:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Give the segmentation masks for all tissue regions of diagnostic interest in this histopathology slide.
-    Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d",
-    the segmentation mask in key "mask", and the text label in the key "label". Use descriptive labels such as
-    "tumor", "stroma", "necrosis", or other relevant structures present in the field of view.
-  temperature: 0.5
-  thinking_budget: 0
+  <<: *defaults
+  prompt_task: histopathology
+  prompt_family: desc_v1
 
-histopathology_hybrid:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Apply a hybrid expression to locate diagnostically relevant tissue regions (e.g., tumor, stroma, necrosis) in this slide.
-    Respond with JSON only: a list of objects with "box_2d", "mask", and descriptive "label" fields for each region you segment.
-  temperature: 0.5
-  thinking_budget: 0
+histopathology_label_v1:
+  <<: *defaults
+  prompt_task: histopathology
+  prompt_family: label_v1
+
+histopathology_desc_v1:
+  <<: *defaults
+  prompt_task: histopathology
+  prompt_family: desc_v1
+
+histopathology_desc_neg_v1:
+  <<: *defaults
+  prompt_task: histopathology
+  prompt_family: desc_neg_v1
