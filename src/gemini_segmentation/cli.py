@@ -353,7 +353,7 @@ def command_segment(args: argparse.Namespace) -> None:
             )
 
             legacy_json_path = None
-            raw_response_payload = raw_items if run_provider == "replicate" else None
+            raw_response_payload = raw_items or None
             if args.legacy_predictions:
                 legacy_dir = dataset_root / f"predictions_{model_label}"
                 legacy_json_path = legacy_dir / f"{img_name}.json"

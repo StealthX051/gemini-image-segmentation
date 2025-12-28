@@ -23,5 +23,6 @@ dependencies:
   - pip
   - pip:
       - google-genai   # Gemini API client. google-generativeai is now deprecated
+      - replicate
       - moondream
       - cairosvg
