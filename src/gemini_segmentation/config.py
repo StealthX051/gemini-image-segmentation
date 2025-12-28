@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import yaml
 
@@ -54,6 +54,10 @@ def build_run_config(
     bootstrap_resamples: int = 5000,
     moondream_targets: Optional[list[str]] = None,
     moondream_endpoint: Optional[str] = None,
+    replicate_model_version: Optional[str] = None,
+    replicate_targets: Optional[Tuple[str, ...]] = None,
+    replicate_instructions: Optional[Dict[str, str]] = None,
+    replicate_cache_dir: Optional[Path] = None,
 ) -> RunConfig:
     return RunConfig(
         dataset_name=dataset_name,
@@ -75,6 +79,10 @@ def build_run_config(
         bootstrap_resamples=bootstrap_resamples,
         moondream_targets=moondream_targets,
         moondream_endpoint=moondream_endpoint,
+        replicate_model_version=replicate_model_version,
+        replicate_targets=replicate_targets,
+        replicate_instructions=replicate_instructions,
+        replicate_cache_dir=replicate_cache_dir,
     )
 
 
@@ -84,4 +92,6 @@ def dump_run_config(config: RunConfig, path: Path) -> None:
     data["dataset_root"] = str(config.dataset_root)
     if config.manifest_path:
         data["manifest_path"] = str(config.manifest_path)
+    if config.replicate_cache_dir:
+        data["replicate_cache_dir"] = str(config.replicate_cache_dir)
     path.write_text(json.dumps(data, indent=2))

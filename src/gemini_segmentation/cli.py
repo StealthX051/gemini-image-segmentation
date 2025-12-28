@@ -170,6 +170,26 @@ def command_segment(args: argparse.Namespace) -> None:
     if args.provider == "moondream" and args.model_name == "gemini-2.5-flash":
         args.model_name = "moondream-3"
 
+    if args.provider == "replicate":
+        if args.replicate_instructions and (
+            not args.replicate_targets
+            or len(args.replicate_instructions) != len(args.replicate_targets)
+        ):
+            raise ValueError(
+                "The number of --replicate-instruction flags must match --replicate-target entries."
+            )
+
+    replicate_cache_dir = (
+        Path(args.replicate_cache_dir).expanduser().resolve()
+        if args.replicate_cache_dir
+        else None
+    )
+    replicate_target_instructions = None
+    if args.replicate_instructions and args.replicate_targets:
+        replicate_target_instructions = {
+            target: instruction for target, instruction in zip(args.replicate_targets, args.replicate_instructions)
+        }
+
     moondream_targets = args.moondream_targets or None
 
     run_id = args.run_id or _default_run_id()
@@ -194,6 +214,10 @@ def command_segment(args: argparse.Namespace) -> None:
         bootstrap_resamples=args.bootstrap_resamples,
         moondream_targets=moondream_targets,
         moondream_endpoint=args.moondream_endpoint,
+        replicate_model_version=args.replicate_model_version,
+        replicate_targets=tuple(args.replicate_targets) if args.replicate_targets else None,
+        replicate_instructions=replicate_target_instructions,
+        replicate_cache_dir=replicate_cache_dir,
     )
     dump_run_config(config, paths["run_config"])
 
@@ -250,6 +274,10 @@ def command_segment(args: argparse.Namespace) -> None:
                     targets=moondream_targets,
                     endpoint=args.moondream_endpoint,
                     api_key=args.moondream_api_key,
+                )
+            elif args.provider == "replicate":
+                raise NotImplementedError(
+                    "Replicate provider is not yet implemented in the CLI segmenter."
                 )
             else:
                 thread_local.segmenter = GeminiSegmenter(
@@ -381,7 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
     seg.add_argument("--manifest", help="Optional manifest filename or path (e.g., pilot list)")
     seg.add_argument(
         "--provider",
-        choices=["gemini", "moondream"],
+        choices=["gemini", "moondream", "replicate"],
         default="gemini",
         help="Segmentation backend to use",
     )
@@ -413,6 +441,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     seg.add_argument("--moondream-endpoint", help="Optional Moondream Station endpoint URL")
     seg.add_argument("--moondream-api-key", help="Moondream API key (defaults to MOONDREAM_API_KEY)")
+    seg.add_argument("--replicate-model-version", help="Replicate model version to call")
+    seg.add_argument(
+        "--replicate-target",
+        action="append",
+        dest="replicate_targets",
+        help="One or more labels to segment with Replicate (repeat per label)",
+    )
+    seg.add_argument(
+        "--replicate-instruction",
+        action="append",
+        dest="replicate_instructions",
+        help="Instruction text aligned with each --replicate-target",
+    )
+    seg.add_argument(
+        "--replicate-cache-dir",
+        help="Optional cache directory for Replicate assets (will be expanded)",
+    )
     seg.add_argument(
         "--bootstrap-method",
         choices=["bca", "percentile"],

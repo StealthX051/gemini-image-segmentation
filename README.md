@@ -9,7 +9,7 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 
 ## Environment
 - **Python**: Use the conda environment in `environment.yml` (Python 3.11, scientific stack, stats, plotting, and `google-genai`).
-- **Secrets**: Provide a `.env` file with `GOOGLE_API_KEY` before running notebooks or the CLI. For Moondream runs, also set `MOONDREAM_API_KEY` (or pass `--moondream-api-key`).
+- **Secrets**: Provide a `.env` file with `GOOGLE_API_KEY` before running notebooks or the CLI. For Moondream runs, also set `MOONDREAM_API_KEY` (or pass `--moondream-api-key`). For Replicate, add `REPLICATE_API_TOKEN` to the same `.env` alongside the other keys.
 - **GPU/CPU**: Workloads are CPU-bound by default; the code auto-resizes images to ≤1024 px as in the paper.
 
 ## Repository layout
