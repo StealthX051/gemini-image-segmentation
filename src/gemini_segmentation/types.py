@@ -24,6 +24,7 @@ class PredictionRecord:
     """Structured metadata for a single image prediction."""
 
     image_name: str
+    provider: Optional[str]
     latency_s: float
     parse_success: bool
     timed_out: bool
