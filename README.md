@@ -9,7 +9,10 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 
 ## Environment
 - **Python**: Use the conda environment in `environment.yml` (Python 3.11, scientific stack, stats, plotting, and `google-genai`).
-- **Secrets**: Provide a `.env` file with `GOOGLE_API_KEY` before running notebooks or the CLI. For Moondream runs, also set `MOONDREAM_API_KEY` (or pass `--moondream-api-key`). For Replicate, add `REPLICATE_API_TOKEN` to the same `.env` alongside the other keys.
+- **Secrets**: Provide a `.env` file with the following keys before running notebooks or the CLI:
+  - `GOOGLE_API_KEY`
+  - `MOONDREAM_API_KEY` (or pass `--moondream-api-key`)
+  - `REPLICATE_API_TOKEN`
 - **GPU/CPU**: Workloads are CPU-bound by default; the code auto-resizes images to ≤1024 px as in the paper.
 
 ## Repository layout
@@ -50,8 +53,9 @@ pip install -r requirements-dev.txt
 - `segment`: Run Gemini or Moondream on a dataset without changing source files.
   - Required: `segment <dataset_name> <dataset_root>` (must contain `images/` and `masks/`, plus any existing manifest files).
   - Key options: `--manifest` to target curated lists (e.g., `pilot50_*`) without rewriting `master_imagelist_*`; `--prompt`/`--prompt-file` or `--prompt-preset configs/prompts.yaml --preset-name <name>`; `--model-name`, `--temperature`, `--thinking-budget`, `--timeout`, `--workers`, `--rate-limit`, `--sample-size`, `--success-threshold`, `--bootstrap-method` (`bca` or `percentile`) and `--bootstrap-resamples` (default 5000) for summary stats; `--legacy-predictions` (emit notebook-style JSON near the inputs for back-compat); `--dry-run` (list pending images without calling the API).
-  - Provider selection: `--provider gemini` (default) or `--provider moondream`. For Moondream, pass `--model-name moondream-3` (auto-applied if you keep the default) and optionally `--moondream-target` multiple times to request one API call per object label (otherwise the prompt text is used as the target). Use `--moondream-endpoint` for a local Moondream Station deployment or rely on `MOONDREAM_API_KEY`/`--moondream-api-key` for cloud calls.
+  - Provider selection: `--provider gemini` (default), `--provider moondream`, or `--provider replicate`. For Moondream, pass `--model-name moondream-3` (auto-applied if you keep the default) and optionally `--moondream-target` multiple times to request one API call per object label (otherwise the prompt text is used as the target). Use `--moondream-endpoint` for a local Moondream Station deployment or rely on `MOONDREAM_API_KEY`/`--moondream-api-key` for cloud calls.
   - Model selection: pass the Gemini model ID via `--model-name`. The default is `gemini-2.5-flash`, and you can explicitly target `gemini-2.5-flash-lite` or `gemini-robotics-er-1.5-preview` the same way.
+  - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version your-org/seg-model:123abc --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
 - `fairness`: Compute ITA/Fitzpatrick statistics from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--manifest] [--sample-size] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`. Defaults fall back to the stored `run_config.json` so fairness matches the originating segmentation subset and bootstrap settings.
 
 ### Outputs (per run)
@@ -68,6 +72,7 @@ results/<dataset>/<model>/<run_id>/
 ```
 - **Resume behavior**: If `predictions.jsonl` exists, the CLI rehydrates prior metrics/masks/overlays before processing remaining images. Writes are atomic per image to avoid corruption on interruption.
 - **Legacy parity**: `--legacy-predictions` writes the notebook-style JSON (including bounding boxes and base64 masks) under `predictions_<model>/` near the dataset, matching the original consumers. Raw payloads are also saved under `raw_responses/` for byte-for-byte reproduction.
+- **Replicate cost/latency**: Replicate provider calls incur the model’s metered costs and add mask-download latency. Use `--replicate-cache-dir <path>` to cache downloaded masks and skip re-fetching them when resuming or rerunning a job.
 
 ### Data flow
 1. **Inputs** stay in place (no path changes): the CLI reads the same `images/`, `masks/`, and manifest text files the notebooks expect.
