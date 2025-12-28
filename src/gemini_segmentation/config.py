@@ -10,6 +10,17 @@ import yaml
 from .types import RunConfig
 
 
+def resolve_preset_name(preset: str, branch: Optional[str] = None) -> str:
+    """Return the preset key adjusted for an optional branch suffix."""
+
+    if branch in (None, "", "legacy"):
+        return preset
+    suffix = f"_{branch}"
+    if preset.endswith(suffix):
+        return preset
+    return f"{preset}{suffix}"
+
+
 def load_yaml(path: Path) -> Dict[str, Any]:
     with path.open("r") as fh:
         return yaml.safe_load(fh) or {}
