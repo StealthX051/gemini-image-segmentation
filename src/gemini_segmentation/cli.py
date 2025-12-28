@@ -279,8 +279,9 @@ def command_segment(args: argparse.Namespace) -> None:
                     api_key=args.moondream_api_key,
                 )
             elif args.provider == "replicate":
+                replicate_model_name = args.replicate_model_version or args.model_name
                 thread_local.segmenter = Sa2VAReplicateSegmenter(
-                    model_name=args.model_name,
+                    model_name=replicate_model_name,
                     model_version=args.replicate_model_version,
                     instruction=prompt,
                     timeout_s=args.timeout,
