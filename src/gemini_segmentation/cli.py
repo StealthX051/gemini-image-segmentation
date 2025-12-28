@@ -353,14 +353,16 @@ def command_segment(args: argparse.Namespace) -> None:
             )
 
             legacy_json_path = None
-            raw_response_payload = raw_items if run_provider == "replicate" else raw_items
+            raw_response_payload = raw_items if run_provider == "replicate" else None
             if args.legacy_predictions:
                 legacy_dir = dataset_root / f"predictions_{model_label}"
                 legacy_json_path = legacy_dir / f"{img_name}.json"
                 _write_legacy_prediction(mask_arrays, legacy_json_path, raw_response_payload)
 
-            raw_response_path = paths["raw_responses"] / f"{img_name}.json"
-            raw_response_path.write_text(json.dumps(raw_response_payload if raw_response_payload is not None else []))
+            raw_response_path = None
+            if raw_response_payload is not None:
+                raw_response_path = paths["raw_responses"] / f"{img_name}.json"
+                raw_response_path.write_text(json.dumps(raw_response_payload))
 
             predictions[img_name] = {
                 "image_name": img_name,
@@ -372,7 +374,7 @@ def command_segment(args: argparse.Namespace) -> None:
                 "overlay_path": str(overlay_path),
                 "metrics": {"iou": iou, "dice": dice, "success": success},
                 "legacy_json_path": str(legacy_json_path) if legacy_json_path else None,
-                "raw_response_path": str(raw_response_path),
+                "raw_response_path": str(raw_response_path) if raw_response_path else None,
                 "provider": run_provider,
             }
 
