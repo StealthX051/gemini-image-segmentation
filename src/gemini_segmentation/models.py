@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
 from typing import Optional, Tuple
 
+import numpy as np
 from google import genai
 from google.genai.types import GenerateContentConfig, Part, SafetySetting, ThinkingConfig
 from PIL import Image
@@ -53,6 +54,8 @@ class GeminiSegmenter:
                 img_for_api.height,
             )
 
+        api_width, api_height = img_for_api.size
+
         with io.BytesIO() as img_byte_arr:
             img_for_api.save(img_byte_arr, format="JPEG")
             img_bytes = img_byte_arr.getvalue()
@@ -75,8 +78,30 @@ class GeminiSegmenter:
         latency = (datetime.now() - start_time).total_seconds()
 
         masks, parse_success, raw_items = parse_segmentation_masks(
-            response, img_height=original_height, img_width=original_width
+            response, img_height=api_height, img_width=api_width
         )
+
+        if (api_height, api_width) != (original_height, original_width):
+            y_scale = original_height / api_height
+            x_scale = original_width / api_width
+            scaled_masks: list[SegmentationMask] = []
+
+            for mask in masks:
+                resized_mask_img = Image.fromarray(mask.mask).resize(
+                    (original_width, original_height), resample=Image.Resampling.NEAREST
+                )
+                scaled_masks.append(
+                    SegmentationMask(
+                        int(mask.y0 * y_scale),
+                        int(mask.x0 * x_scale),
+                        min(original_height, int(mask.y1 * y_scale)),
+                        min(original_width, int(mask.x1 * x_scale)),
+                        np.array(resized_mask_img),
+                        mask.label,
+                    )
+                )
+
+            masks = scaled_masks
         return masks, latency, parse_success, raw_items
 
     def segment(
