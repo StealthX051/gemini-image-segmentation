@@ -217,6 +217,7 @@ def load_existing_predictions(path: Path) -> Dict[str, PredictionRecord]:
                 records[image_name] = PredictionRecord(
                     image_name=image_name,
                     provider=payload.get("provider"),
+                    prompt_family=payload.get("prompt_family"),
                     latency_s=float(payload.get("latency_s", 0.0)),
                     parse_success=bool(payload.get("parse_success", False)),
                     timed_out=bool(payload.get("timed_out", False)),
