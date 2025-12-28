@@ -49,6 +49,7 @@ class RunConfig:
     dataset_root: Path
     model_name: str
     prompt: str
+    provider: str = "gemini"
     thinking_budget: int = 0
     temperature: float = 0.5
     safety_settings: Optional[dict] = None
@@ -61,6 +62,8 @@ class RunConfig:
     run_id: Optional[str] = None
     bootstrap_method: str = "bca"
     bootstrap_resamples: int = 5000
+    moondream_targets: Optional[List[str]] = None
+    moondream_endpoint: Optional[str] = None
 
 
 @dataclass
