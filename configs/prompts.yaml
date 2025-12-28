@@ -15,10 +15,26 @@ polyp:
   temperature: 0.5
   thinking_budget: 0
 
+polyp_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Use a hybrid expression to reason about where each colorectal polyp is located, then output the final result as pure JSON.
+    Return a list of objects with keys "box_2d", "mask", and "label" for every polyp you find. Do not include any text outside the JSON payload.
+  temperature: 0.5
+  thinking_budget: 0
+
 optic_disc_cup:
   model: gemini-2.5-flash
   prompt_text: |
     Give the segmentation masks for the optic disc and the optic cup in this retinal fundus image. Output a JSON list of two segmentation masks. One entry should have the label "optic disc" and the other "optic cup". Each entry must contain the 2D bounding box in "box_2d", the segmentation mask in "mask", and the text label in "label".
+  temperature: 0.5
+  thinking_budget: 0
+
+optic_disc_cup_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Using a hybrid expression, first identify the optic disc and optic cup locations, then provide only the JSON output.
+    Return two entries labeled "optic disc" and "optic cup" with keys "box_2d", "mask", and "label" and no additional prose.
   temperature: 0.5
   thinking_budget: 0
 
@@ -29,10 +45,26 @@ derm_lesion:
   temperature: 0.5
   thinking_budget: 0
 
+derm_lesion_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Apply a hybrid expression to locate every skin lesion, then respond with JSON only.
+    Each object must include "box_2d", "mask", and a descriptive "label" for the lesion; omit any explanations outside the JSON list.
+  temperature: 0.5
+  thinking_budget: 0
+
 busi_mass:
   model: gemini-2.5-flash
   prompt_text: |
     Give the segmentation mask for the breast mass in this ultrasound image. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use a descriptive label like "mass".
+  temperature: 0.5
+  thinking_budget: 0
+
+busi_mass_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Use a hybrid expression to localize the breast mass in this ultrasound image and then emit JSON only.
+    Provide a single entry with keys "box_2d", "mask", and a descriptive "label" for the mass; no extra narrative.
   temperature: 0.5
   thinking_budget: 0
 
@@ -43,6 +75,14 @@ pneumothorax_cxr:
   temperature: 0.5
   thinking_budget: 0
 
+pneumothorax_cxr_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Follow a hybrid expression: reason about where pneumothorax regions appear in this chest x-ray, then reply with JSON only.
+    Return entries labeled "pneumothorax" with "box_2d", "mask", and "label" keys; do not add surrounding text.
+  temperature: 0.5
+  thinking_budget: 0
+
 lits_liver:
   model: gemini-2.5-flash
   prompt_text: |
@@ -50,10 +90,26 @@ lits_liver:
   temperature: 0.5
   thinking_budget: 0
 
+lits_liver_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Use a hybrid expression to focus on the liver region in this abdominal CT slice.
+    Output JSON only with one object labeled "liver" containing "box_2d", "mask", and "label"; avoid any other commentary.
+  temperature: 0.5
+  thinking_budget: 0
+
 lits_liver_mass:
   model: gemini-2.5-flash
   prompt_text: |
     In this slice of an abdominal CT, give the segmentation mask for the liver mass. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "liver mass".
+  temperature: 0.5
+  thinking_budget: 0
+
+lits_liver_mass_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Apply a hybrid expression to find liver masses in this abdominal CT slice and return JSON only.
+    Each entry must have "box_2d", "mask", and the label "liver mass"; do not include narrative text outside the JSON array.
   temperature: 0.5
   thinking_budget: 0
 
@@ -67,6 +123,14 @@ laparoscopy_uterus_tools:
   temperature: 0.5
   thinking_budget: 0
 
+laparoscopy_uterus_tools_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Using a hybrid expression, identify the uterus and all surgical tools in this laparoscopic frame, then reply only with JSON.
+    Produce entries labeled "uterus" and "surgical tool" (one combined category) with keys "box_2d", "mask", and "label"; omit any other output.
+  temperature: 0.5
+  thinking_budget: 0
+
 histopathology:
   model: gemini-2.5-flash
   prompt_text: |
@@ -74,5 +138,13 @@ histopathology:
     Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d",
     the segmentation mask in key "mask", and the text label in the key "label". Use descriptive labels such as
     "tumor", "stroma", "necrosis", or other relevant structures present in the field of view.
+  temperature: 0.5
+  thinking_budget: 0
+
+histopathology_hybrid:
+  model: gemini-2.5-flash
+  prompt_text: |
+    Apply a hybrid expression to locate diagnostically relevant tissue regions (e.g., tumor, stroma, necrosis) in this slide.
+    Respond with JSON only: a list of objects with "box_2d", "mask", and descriptive "label" fields for each region you segment.
   temperature: 0.5
   thinking_budget: 0

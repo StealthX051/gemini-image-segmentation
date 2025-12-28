@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-from .config import build_run_config, dump_run_config, load_preset
+from .config import build_run_config, dump_run_config, load_preset, resolve_preset_name
 from .data import (
     DEFAULT_MANIFEST_TEMPLATE,
     discover_dataset,
@@ -145,7 +145,15 @@ def command_segment(args: argparse.Namespace) -> None:
     if args.prompt_file:
         prompt = Path(args.prompt_file).read_text()
     if args.prompt_preset:
-        preset_cfg = load_preset(Path(args.prompt_preset), args.preset_name)
+        resolved_preset_name = resolve_preset_name(args.preset_name, args.preset_branch)
+        try:
+            preset_cfg = load_preset(Path(args.prompt_preset), resolved_preset_name)
+        except KeyError as exc:
+            if args.preset_branch:
+                raise KeyError(
+                    f"Preset '{resolved_preset_name}' not found for branch '{args.preset_branch}'"
+                ) from exc
+            raise
         prompt = preset_cfg.get("prompt_text", prompt)
         if preset_cfg.get("model"):
             args.model_name = preset_cfg["model"]
@@ -353,6 +361,11 @@ def build_parser() -> argparse.ArgumentParser:
     seg.add_argument("--prompt-file", help="Path to a prompt text file")
     seg.add_argument("--prompt-preset", help="YAML file containing prompt presets")
     seg.add_argument("--preset-name", default="default", help="Preset key to use when loading prompt-preset")
+    seg.add_argument(
+        "--preset-branch",
+        choices=["legacy", "hybrid"],
+        help="Optional branch suffix (e.g., 'hybrid' selects <preset_name>_hybrid)",
+    )
     seg.add_argument("--thinking-budget", type=int, default=0, help="Thinking budget tokens")
     seg.add_argument("--temperature", type=float, default=0.5, help="Sampling temperature")
     seg.add_argument("--timeout", type=float, default=60.0, help="Client-side timeout per image")
