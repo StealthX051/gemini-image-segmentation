@@ -53,10 +53,14 @@ def _default_run_id() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
-def _prompt_key(prompt: str, prompt_family: str | None = None) -> str:
+def _prompt_hash(prompt: str) -> str:
+    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8]
+
+
+def _prompt_key(prompt: str, prompt_family: str | None = None, prompt_hash: str | None = None) -> str:
+    digest = prompt_hash or _prompt_hash(prompt)
     if prompt_family:
-        return prompt_family
-    digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8]
+        return f"{prompt_family}-{digest}"
     return f"prompt-{digest}"
 
 
@@ -194,19 +198,21 @@ def command_segment(args: argparse.Namespace) -> None:
         if preset_cfg.get("thinking_budget") is not None:
             args.thinking_budget = int(preset_cfg["thinking_budget"])
 
-    prompt_runs: List[tuple[str, str | None, str]] = []
+    prompt_runs: List[tuple[str, str | None, str, str]] = []
     seen_keys = set()
     if prompt_families:
         for family in prompt_families:
             rendered_prompt = build_prompt(prompt_task, family)
-            prompt_key = _prompt_key(rendered_prompt, family)
+            prompt_hash = _prompt_hash(rendered_prompt)
+            prompt_key = _prompt_key(rendered_prompt, family, prompt_hash)
             if prompt_key in seen_keys:
                 continue
             seen_keys.add(prompt_key)
-            prompt_runs.append((rendered_prompt, family, prompt_key))
+            prompt_runs.append((rendered_prompt, family, prompt_key, prompt_hash))
     else:
-        prompt_key = _prompt_key(prompt_text, None)
-        prompt_runs.append((prompt_text, None, prompt_key))
+        prompt_hash = _prompt_hash(prompt_text)
+        prompt_key = _prompt_key(prompt_text, None, prompt_hash)
+        prompt_runs.append((prompt_text, None, prompt_key, prompt_hash))
 
     run_id = args.run_id or _default_run_id()
     base_model_name = args.model_name
@@ -219,7 +225,7 @@ def command_segment(args: argparse.Namespace) -> None:
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    for prompt, prompt_family, prompt_key in prompt_runs:
+    for prompt, prompt_family, prompt_key, prompt_hash in prompt_runs:
         model_name = base_model_name
         run_provider = base_provider
         replicate_model_version = base_replicate_model_version
@@ -297,7 +303,6 @@ def command_segment(args: argparse.Namespace) -> None:
                 Path(args.results_dir), args.dataset_name, model_label, prompt_key, run_id
             )
 
-        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8]
         config = build_run_config(
             dataset_name=args.dataset_name,
             dataset_root=dataset_root,
