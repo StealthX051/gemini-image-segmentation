@@ -12,5 +12,6 @@ pingouin
 cliffs-delta
 opencv-python
 google-genai
+replicate
 moondream
 cairosvg
