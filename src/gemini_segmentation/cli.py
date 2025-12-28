@@ -7,7 +7,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Protocol, Tuple
 
 import numpy as np
 import pandas as pd
@@ -43,8 +43,8 @@ from .metrics import (
     upsert_metrics,
     write_summary,
 )
-from .models import GeminiSegmenter
-from .types import PerImageMetrics
+from .models import GeminiSegmenter, MoondreamSegmenter
+from .types import PerImageMetrics, SegmentationMask
 
 
 def _default_run_id() -> str:
@@ -92,7 +92,12 @@ def _prepare_output_dirs(base_results: Path, dataset: str, model: str, run_id: s
     return paths
 
 
-def _process_image(segmenter: GeminiSegmenter, img_path: Path, limiter: RateLimiter | None = None):
+class SegmenterProtocol(Protocol):
+    def segment(self, image_obj: Image.Image) -> Tuple[List[SegmentationMask], float, bool, bool, List[dict]]:
+        ...
+
+
+def _process_image(segmenter: SegmenterProtocol, img_path: Path, limiter: RateLimiter | None = None):
     if limiter:
         limiter.wait()
     image = load_image(img_path)
@@ -162,6 +167,11 @@ def command_segment(args: argparse.Namespace) -> None:
         if preset_cfg.get("thinking_budget") is not None:
             args.thinking_budget = int(preset_cfg["thinking_budget"])
 
+    if args.provider == "moondream" and args.model_name == "gemini-2.5-flash":
+        args.model_name = "moondream-3"
+
+    moondream_targets = args.moondream_targets or None
+
     run_id = args.run_id or _default_run_id()
     paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, args.model_name, run_id)
 
@@ -170,6 +180,7 @@ def command_segment(args: argparse.Namespace) -> None:
         dataset_root=dataset_root,
         prompt=prompt,
         model_name=args.model_name,
+        provider=args.provider,
         thinking_budget=args.thinking_budget,
         temperature=args.temperature,
         timeout_s=args.timeout,
@@ -181,6 +192,8 @@ def command_segment(args: argparse.Namespace) -> None:
         run_id=run_id,
         bootstrap_method=args.bootstrap_method,
         bootstrap_resamples=args.bootstrap_resamples,
+        moondream_targets=moondream_targets,
+        moondream_endpoint=args.moondream_endpoint,
     )
     dump_run_config(config, paths["run_config"])
 
@@ -227,15 +240,25 @@ def command_segment(args: argparse.Namespace) -> None:
 
     thread_local = threading.local()
 
-    def get_segmenter() -> GeminiSegmenter:
+    def get_segmenter() -> SegmenterProtocol:
         if not hasattr(thread_local, "segmenter"):
-            thread_local.segmenter = GeminiSegmenter(
-                model_name=args.model_name,
-                prompt=prompt,
-                temperature=args.temperature,
-                thinking_budget=args.thinking_budget,
-                timeout_s=args.timeout,
-            )
+            if args.provider == "moondream":
+                thread_local.segmenter = MoondreamSegmenter(
+                    model_name=args.model_name,
+                    prompt=prompt,
+                    timeout_s=args.timeout,
+                    targets=moondream_targets,
+                    endpoint=args.moondream_endpoint,
+                    api_key=args.moondream_api_key,
+                )
+            else:
+                thread_local.segmenter = GeminiSegmenter(
+                    model_name=args.model_name,
+                    prompt=prompt,
+                    temperature=args.temperature,
+                    thinking_budget=args.thinking_budget,
+                    timeout_s=args.timeout,
+                )
         return thread_local.segmenter
 
     futures = {}
@@ -352,10 +375,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Gemini segmentation CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    seg = subparsers.add_parser("segment", help="Run Gemini segmentation")
+    seg = subparsers.add_parser("segment", help="Run segmentation")
     seg.add_argument("dataset_name", help="Dataset name (used for manifests and output paths)")
     seg.add_argument("dataset_root", help="Path to dataset root containing images/ and masks/")
     seg.add_argument("--manifest", help="Optional manifest filename or path (e.g., pilot list)")
+    seg.add_argument(
+        "--provider",
+        choices=["gemini", "moondream"],
+        default="gemini",
+        help="Segmentation backend to use",
+    )
     seg.add_argument("--model-name", default="gemini-2.5-flash", help="Gemini model name")
     seg.add_argument("--prompt", default="", help="Prompt text to send")
     seg.add_argument("--prompt-file", help="Path to a prompt text file")
@@ -376,6 +405,14 @@ def build_parser() -> argparse.ArgumentParser:
     seg.add_argument("--rate-limit", type=float, help="Seconds to sleep between calls")
     seg.add_argument("--legacy-predictions", action="store_true", help="Also save predictions_<model>/ JSONs")
     seg.add_argument("--success-threshold", type=float, default=0.5, help="IoU success threshold")
+    seg.add_argument(
+        "--moondream-target",
+        action="append",
+        dest="moondream_targets",
+        help="One or more object labels to segment with Moondream (one API call per target)",
+    )
+    seg.add_argument("--moondream-endpoint", help="Optional Moondream Station endpoint URL")
+    seg.add_argument("--moondream-api-key", help="Moondream API key (defaults to MOONDREAM_API_KEY)")
     seg.add_argument(
         "--bootstrap-method",
         choices=["bca", "percentile"],

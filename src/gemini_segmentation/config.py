@@ -39,6 +39,7 @@ def build_run_config(
     prompt: str,
     model_name: str,
     *,
+    provider: str = "gemini",
     thinking_budget: int = 0,
     temperature: float = 0.5,
     safety_settings: Optional[Dict[str, Any]] = None,
@@ -51,12 +52,15 @@ def build_run_config(
     run_id: Optional[str] = None,
     bootstrap_method: str = "bca",
     bootstrap_resamples: int = 5000,
+    moondream_targets: Optional[list[str]] = None,
+    moondream_endpoint: Optional[str] = None,
 ) -> RunConfig:
     return RunConfig(
         dataset_name=dataset_name,
         dataset_root=dataset_root,
         model_name=model_name,
         prompt=prompt,
+        provider=provider,
         thinking_budget=thinking_budget,
         temperature=temperature,
         safety_settings=safety_settings,
@@ -69,6 +73,8 @@ def build_run_config(
         run_id=run_id,
         bootstrap_method=bootstrap_method,
         bootstrap_resamples=bootstrap_resamples,
+        moondream_targets=moondream_targets,
+        moondream_endpoint=moondream_endpoint,
     )
 
 

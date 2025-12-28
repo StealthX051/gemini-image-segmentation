@@ -9,7 +9,7 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 
 ## Environment
 - **Python**: Use the conda environment in `environment.yml` (Python 3.11, scientific stack, stats, plotting, and `google-genai`).
-- **Secrets**: Provide a `.env` file with `GOOGLE_API_KEY` before running notebooks or the CLI.
+- **Secrets**: Provide a `.env` file with `GOOGLE_API_KEY` before running notebooks or the CLI. For Moondream runs, also set `MOONDREAM_API_KEY` (or pass `--moondream-api-key`).
 - **GPU/CPU**: Workloads are CPU-bound by default; the code auto-resizes images to ≤1024 px as in the paper.
 
 ## Repository layout
@@ -41,9 +41,10 @@ conda activate gemini-segmentation
 Ensure `.env` contains `GOOGLE_API_KEY`.
 
 ### Commands
-- `segment`: Run Gemini on a dataset without changing source files.
+- `segment`: Run Gemini or Moondream on a dataset without changing source files.
   - Required: `segment <dataset_name> <dataset_root>` (must contain `images/` and `masks/`, plus any existing manifest files).
   - Key options: `--manifest` to target curated lists (e.g., `pilot50_*`) without rewriting `master_imagelist_*`; `--prompt`/`--prompt-file` or `--prompt-preset configs/prompts.yaml --preset-name <name>`; `--model-name`, `--temperature`, `--thinking-budget`, `--timeout`, `--workers`, `--rate-limit`, `--sample-size`, `--success-threshold`, `--bootstrap-method` (`bca` or `percentile`) and `--bootstrap-resamples` (default 5000) for summary stats; `--legacy-predictions` (emit notebook-style JSON near the inputs for back-compat); `--dry-run` (list pending images without calling the API).
+  - Provider selection: `--provider gemini` (default) or `--provider moondream`. For Moondream, pass `--model-name moondream-3` (auto-applied if you keep the default) and optionally `--moondream-target` multiple times to request one API call per object label (otherwise the prompt text is used as the target). Use `--moondream-endpoint` for a local Moondream Station deployment or rely on `MOONDREAM_API_KEY`/`--moondream-api-key` for cloud calls.
   - Model selection: pass the Gemini model ID via `--model-name`. The default is `gemini-2.5-flash`, and you can explicitly target `gemini-2.5-flash-lite` or `gemini-robotics-er-1.5-preview` the same way.
 - `fairness`: Compute ITA/Fitzpatrick statistics from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--manifest] [--sample-size] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`. Defaults fall back to the stored `run_config.json` so fairness matches the originating segmentation subset and bootstrap settings.
 

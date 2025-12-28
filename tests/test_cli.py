@@ -4,7 +4,7 @@ import tempfile
 import types
 from pathlib import Path
 from types import SimpleNamespace
-from unittest import mock, TestCase
+from unittest import TestCase, mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))
@@ -102,12 +102,16 @@ class CommandSegmentBranchTests(TestCase):
                 dataset_name="polyp",
                 dataset_root=str(dataset_root),
                 manifest=None,
+                provider="gemini",
                 model_name="gemini-2.5-flash",
                 prompt="",
                 prompt_file=None,
                 prompt_preset="configs/prompts.yaml",
                 preset_name="polyp",
                 preset_branch="hybrid",
+                moondream_targets=None,
+                moondream_endpoint=None,
+                moondream_api_key=None,
                 thinking_budget=0,
                 temperature=0.5,
                 timeout=1.0,
