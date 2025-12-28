@@ -25,6 +25,7 @@ class PredictionRecord:
 
     image_name: str
     provider: Optional[str]
+    prompt_family: Optional[str]
     latency_s: float
     parse_success: bool
     timed_out: bool
@@ -50,6 +51,8 @@ class RunConfig:
     dataset_root: Path
     model_name: str
     prompt: str
+    prompt_family: Optional[str] = None
+    prompt_hash: Optional[str] = None
     provider: str = "gemini"
     thinking_budget: int = 0
     temperature: float = 0.5

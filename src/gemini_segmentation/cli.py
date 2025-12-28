@@ -5,6 +5,7 @@ import json
 import logging
 import threading
 import time
+import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Protocol, Tuple
@@ -52,6 +53,13 @@ def _default_run_id() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
+def _prompt_key(prompt: str, prompt_family: str | None = None) -> str:
+    if prompt_family:
+        return prompt_family
+    digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8]
+    return f"prompt-{digest}"
+
+
 class RateLimiter:
     """Process-wide rate limiter shared across workers."""
 
@@ -70,8 +78,10 @@ class RateLimiter:
             self._next_allowed = time.monotonic() + self.min_interval_s
 
 
-def _prepare_output_dirs(base_results: Path, dataset: str, model: str, run_id: str) -> Dict[str, Path]:
-    run_dir = base_results / dataset / model / run_id
+def _prepare_output_dirs(
+    base_results: Path, dataset: str, model: str, prompt_key: str, run_id: str
+) -> Dict[str, Path]:
+    run_dir = base_results / dataset / model / prompt_key / run_id
     paths = {
         "run_dir": run_dir,
         "predictions_jsonl": run_dir / "predictions.jsonl",
@@ -147,9 +157,17 @@ def command_segment(args: argparse.Namespace) -> None:
     images = sample_images(manifest_images, args.sample_size)
     image_mask_pairs = paired_masks(images, dataset_paths.masks_dir)
 
-    prompt = args.prompt
+    prompt_text = args.prompt
     if args.prompt_file:
-        prompt = Path(args.prompt_file).read_text()
+        prompt_text = Path(args.prompt_file).read_text()
+    prompt_families: List[str] = []
+    if args.prompt_family:
+        if isinstance(args.prompt_family, str):
+            prompt_families = [args.prompt_family]
+        else:
+            prompt_families = list(args.prompt_family)
+    prompt_task = args.dataset_name
+
     if args.prompt_preset:
         resolved_preset_name = resolve_preset_name(args.preset_name, args.preset_branch)
         try:
@@ -160,241 +178,299 @@ def command_segment(args: argparse.Namespace) -> None:
                     f"Preset '{resolved_preset_name}' not found for branch '{args.preset_branch}'"
                 ) from exc
             raise
-        prompt_family = args.prompt_family or preset_cfg.get("prompt_family")
+        preset_family = preset_cfg.get("prompt_family")
         prompt_task = preset_cfg.get("prompt_task", args.dataset_name)
-        if prompt_family:
-            prompt = build_prompt(prompt_task, prompt_family)
-        else:
-            prompt = preset_cfg.get("prompt_text", prompt)
+        if preset_family and not prompt_families:
+            if isinstance(preset_family, (list, tuple)):
+                prompt_families.extend([str(fam) for fam in preset_family])
+            else:
+                prompt_families.append(str(preset_family))
+        if not prompt_families:
+            prompt_text = preset_cfg.get("prompt_text", prompt_text)
         if preset_cfg.get("model"):
             args.model_name = preset_cfg["model"]
         if preset_cfg.get("temperature") is not None:
             args.temperature = float(preset_cfg["temperature"])
         if preset_cfg.get("thinking_budget") is not None:
             args.thinking_budget = int(preset_cfg["thinking_budget"])
-    elif args.prompt_family:
-        prompt = build_prompt(args.dataset_name, args.prompt_family)
+
+    prompt_runs: List[tuple[str, str | None, str]] = []
+    seen_keys = set()
+    if prompt_families:
+        for family in prompt_families:
+            rendered_prompt = build_prompt(prompt_task, family)
+            prompt_key = _prompt_key(rendered_prompt, family)
+            if prompt_key in seen_keys:
+                continue
+            seen_keys.add(prompt_key)
+            prompt_runs.append((rendered_prompt, family, prompt_key))
+    else:
+        prompt_key = _prompt_key(prompt_text, None)
+        prompt_runs.append((prompt_text, None, prompt_key))
 
     run_id = args.run_id or _default_run_id()
-    model_label = args.replicate_model_version if args.provider == "replicate" else args.model_name
-    paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, model_label, run_id)
-
-    existing_run_config = {}
-    if paths["run_config"].exists():
-        try:
-            existing_run_config = json.loads(paths["run_config"].read_text())
-        except json.JSONDecodeError:
-            logging.warning("Failed to parse existing run_config.json; proceeding with CLI arguments")
-
-    run_provider = existing_run_config.get("provider", args.provider)
-
-    if run_provider == "moondream" and args.model_name == "gemini-2.5-flash":
-        args.model_name = "moondream-3"
-
-    replicate_model_version = args.replicate_model_version or existing_run_config.get("replicate_model_version")
-    replicate_targets_arg = args.replicate_targets or existing_run_config.get("replicate_targets")
-    replicate_instructions_arg = args.replicate_instructions or existing_run_config.get("replicate_instructions")
-    replicate_cache_dir = (
-        Path(args.replicate_cache_dir).expanduser().resolve()
-        if args.replicate_cache_dir
-        else Path(existing_run_config["replicate_cache_dir"]).expanduser().resolve()
-        if existing_run_config.get("replicate_cache_dir")
-        else None
-    )
-
-    replicate_target_instructions = None
-    if replicate_instructions_arg and replicate_targets_arg:
-        replicate_target_instructions = {
-            target: instruction
-            for target, instruction in zip(replicate_targets_arg, replicate_instructions_arg)
-        }
-
-    if run_provider == "replicate":
-        if replicate_instructions_arg and (
-            not replicate_targets_arg
-            or len(replicate_instructions_arg) != len(replicate_targets_arg)
-        ):
-            raise ValueError(
-                "The number of --replicate-instruction flags must match --replicate-target entries."
-            )
-        if not replicate_model_version:
-            raise ValueError("--replicate-model-version is required when provider is 'replicate'")
-
-    moondream_targets = args.moondream_targets or existing_run_config.get("moondream_targets") or None
-
-    model_label = replicate_model_version if run_provider == "replicate" else args.model_name
-    if model_label != paths["run_dir"].parts[-2]:
-        paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, model_label, run_id)
-
-    config = build_run_config(
-        dataset_name=args.dataset_name,
-        dataset_root=dataset_root,
-        prompt=prompt,
-        model_name=model_label,
-        provider=run_provider,
-        thinking_budget=args.thinking_budget,
-        temperature=args.temperature,
-        timeout_s=args.timeout,
-        workers=args.workers,
-        sample_size=args.sample_size,
-        manifest_path=dataset_paths.manifest_path,
-        rate_limit_s=args.rate_limit,
-        legacy_predictions=args.legacy_predictions,
-        run_id=run_id,
-        bootstrap_method=args.bootstrap_method,
-        bootstrap_resamples=args.bootstrap_resamples,
-        moondream_targets=moondream_targets,
-        moondream_endpoint=args.moondream_endpoint,
-        replicate_model_version=replicate_model_version,
-        replicate_targets=tuple(replicate_targets_arg) if replicate_targets_arg else None,
-        replicate_instructions=replicate_target_instructions,
-        replicate_cache_dir=replicate_cache_dir,
-    )
-    dump_run_config(config, paths["run_config"])
-
-    predictions = load_existing_predictions(paths["predictions_jsonl"])
-    metrics_map = load_metrics(paths["metrics"])
-    gt_lookup = {img.name: gt for img, gt in image_mask_pairs}
-
-    missing_artifacts = set()
-    for name, record in predictions.items():
-        if record.prediction_path and record.prediction_path.exists():
-            if name not in metrics_map and name in gt_lookup:
-                gt_array = np.array(Image.open(gt_lookup[name]))
-                pred_array = np.array(Image.open(record.prediction_path))
-                iou, dice, success = compute_metrics_for_masks(
-                    gt_array, [pred_array], success_threshold=args.success_threshold
-                )
-                metrics_map = upsert_metrics(
-                    metrics_map,
-                    PerImageMetrics(image_name=name, iou=iou, dice=dice, success=success),
-                    metrics_path=paths["metrics"],
-                    summary_path=paths["summary"],
-                    n_resamples=args.bootstrap_resamples,
-                    method=args.bootstrap_method,
-                )
-        else:
-            missing_artifacts.add(name)
-        if record.overlay_path and not record.overlay_path.exists():
-            missing_artifacts.add(name)
-
-    pending_pairs: List[Tuple[Path, Path]] = []
-    for img_path, gt_mask_path in image_mask_pairs:
-        if img_path.name in missing_artifacts or img_path.name not in predictions:
-            pending_pairs.append((img_path, gt_mask_path))
-
-    if args.dry_run:
-        logging.info("Dry run: %s images need processing", len(pending_pairs))
-        for img_path, _ in pending_pairs:
-            logging.info("Pending: %s", img_path.name)
-        return
+    base_model_name = args.model_name
+    base_provider = args.provider
+    base_replicate_model_version = args.replicate_model_version
+    base_replicate_targets = args.replicate_targets
+    base_replicate_instructions = args.replicate_instructions
 
     rate_limiter = RateLimiter(args.rate_limit) if args.rate_limit else None
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    thread_local = threading.local()
+    for prompt, prompt_family, prompt_key in prompt_runs:
+        model_name = base_model_name
+        run_provider = base_provider
+        replicate_model_version = base_replicate_model_version
+        replicate_targets_arg = base_replicate_targets
+        replicate_instructions_arg = base_replicate_instructions
 
-    def get_segmenter() -> SegmenterProtocol:
-        if not hasattr(thread_local, "segmenter"):
-            if run_provider == "moondream":
-                thread_local.segmenter = MoondreamSegmenter(
-                    model_name=args.model_name,
-                    prompt=prompt,
-                    timeout_s=args.timeout,
-                    targets=moondream_targets,
-                    endpoint=args.moondream_endpoint,
-                    api_key=args.moondream_api_key,
+        model_label = (
+            replicate_model_version if run_provider == "replicate" else model_name
+        )
+        paths = _prepare_output_dirs(
+            Path(args.results_dir), args.dataset_name, model_label, prompt_key, run_id
+        )
+
+        existing_run_config = {}
+        if paths["run_config"].exists():
+            try:
+                existing_run_config = json.loads(paths["run_config"].read_text())
+            except json.JSONDecodeError:
+                logging.warning(
+                    "Failed to parse existing run_config.json; proceeding with CLI arguments"
                 )
-            elif run_provider == "replicate":
-                replicate_model_name = replicate_model_version or args.model_name
-                thread_local.segmenter = Sa2VAReplicateSegmenter(
-                    model_name=replicate_model_name,
-                    model_version=replicate_model_version or args.model_name,
-                    instruction=prompt,
-                    timeout_s=args.timeout,
-                    targets=replicate_targets_arg,
-                    instructions=replicate_target_instructions,
-                    cache_dir=replicate_cache_dir,
-                )
-            else:
-                thread_local.segmenter = GeminiSegmenter(
-                    model_name=args.model_name,
-                    prompt=prompt,
-                    temperature=args.temperature,
-                    thinking_budget=args.thinking_budget,
-                    timeout_s=args.timeout,
-                )
-        return thread_local.segmenter
 
-    futures = {}
-    with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        for img_path, gt_mask_path in pending_pairs:
-            futures[executor.submit(lambda p=img_path: _process_image(get_segmenter(), p, rate_limiter))] = (
-                img_path,
-                gt_mask_path,
-            )
+        run_provider = existing_run_config.get("provider", run_provider)
 
-        for future in as_completed(futures):
-            img_path, gt_mask_path = futures[future]
-            img_name, masks, latency, parse_success, timed_out, raw_items = future.result()
-            mask_arrays = [m.mask for m in masks]
-            mask_save_path = paths["masks"] / img_name
-            gt_array = np.array(Image.open(gt_mask_path))
-            combined_mask = combine_masks(mask_arrays) if mask_arrays else np.zeros_like(gt_array)
-            save_mask_png(combined_mask, mask_save_path)
+        if run_provider == "moondream" and model_name == "gemini-2.5-flash":
+            model_name = "moondream-3"
 
-            overlay_path = paths["overlays"] / img_name
-            overlay = plot_segmentation_masks(Image.open(img_path), masks)
-            overlay.save(overlay_path)
+        replicate_model_version = replicate_model_version or existing_run_config.get(
+            "replicate_model_version"
+        )
+        replicate_targets_arg = replicate_targets_arg or existing_run_config.get(
+            "replicate_targets"
+        )
+        replicate_instructions_arg = replicate_instructions_arg or existing_run_config.get(
+            "replicate_instructions"
+        )
+        replicate_cache_dir = (
+            Path(args.replicate_cache_dir).expanduser().resolve()
+            if args.replicate_cache_dir
+            else Path(existing_run_config["replicate_cache_dir"]).expanduser().resolve()
+            if existing_run_config.get("replicate_cache_dir")
+            else None
+        )
 
-            iou, dice, success = compute_metrics_for_masks(
-                gt_array, mask_arrays, success_threshold=args.success_threshold
-            )
-            metrics_map = upsert_metrics(
-                metrics_map,
-                PerImageMetrics(image_name=img_name, iou=iou, dice=dice, success=success),
-                metrics_path=paths["metrics"],
-                summary_path=paths["summary"],
-                n_resamples=args.bootstrap_resamples,
-                method=args.bootstrap_method,
-            )
-
-            legacy_json_path = None
-            raw_response_payload = raw_items or None
-            if args.legacy_predictions:
-                legacy_dir = dataset_root / f"predictions_{model_label}"
-                legacy_json_path = legacy_dir / f"{img_name}.json"
-                _write_legacy_prediction(mask_arrays, legacy_json_path, raw_response_payload)
-
-            raw_response_path = None
-            if raw_response_payload is not None:
-                raw_response_path = paths["raw_responses"] / f"{img_name}.json"
-                raw_response_path.write_text(json.dumps(raw_response_payload))
-
-            predictions[img_name] = {
-                "image_name": img_name,
-                "latency_s": latency,
-                "parse_success": parse_success,
-                "timed_out": timed_out,
-                "num_masks": len(mask_arrays),
-                "prediction_path": str(mask_save_path),
-                "overlay_path": str(overlay_path),
-                "metrics": {"iou": iou, "dice": dice, "success": success},
-                "legacy_json_path": str(legacy_json_path) if legacy_json_path else None,
-                "raw_response_path": str(raw_response_path) if raw_response_path else None,
-                "provider": run_provider,
+        replicate_target_instructions = None
+        if replicate_instructions_arg and replicate_targets_arg:
+            replicate_target_instructions = {
+                target: instruction
+                for target, instruction in zip(replicate_targets_arg, replicate_instructions_arg)
             }
 
-            write_prediction_jsonl(predictions.values(), paths["predictions_jsonl"], mode="w")
+        if run_provider == "replicate":
+            if replicate_instructions_arg and (
+                not replicate_targets_arg
+                or len(replicate_instructions_arg) != len(replicate_targets_arg)
+            ):
+                raise ValueError(
+                    "The number of --replicate-instruction flags must match --replicate-target entries."
+                )
+            if not replicate_model_version:
+                raise ValueError(
+                    "--replicate-model-version is required when provider is 'replicate'"
+                )
 
-    if metrics_map:
-        summary = aggregate_from_map(
-            metrics_map, n_resamples=args.bootstrap_resamples, method=args.bootstrap_method
+        moondream_targets = (
+            args.moondream_targets or existing_run_config.get("moondream_targets") or None
         )
-        write_summary(summary, paths["summary"])
 
-    logging.info("Segmentation run complete. Outputs at %s", paths["run_dir"])
+        model_label = (
+            replicate_model_version if run_provider == "replicate" else model_name
+        )
+        current_model_label = paths["run_dir"].parts[-3]
+        if model_label != current_model_label:
+            paths = _prepare_output_dirs(
+                Path(args.results_dir), args.dataset_name, model_label, prompt_key, run_id
+            )
+
+        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8]
+        config = build_run_config(
+            dataset_name=args.dataset_name,
+            dataset_root=dataset_root,
+            prompt=prompt,
+            prompt_family=prompt_family,
+            prompt_hash=prompt_hash,
+            model_name=model_label,
+            provider=run_provider,
+            thinking_budget=args.thinking_budget,
+            temperature=args.temperature,
+            timeout_s=args.timeout,
+            workers=args.workers,
+            sample_size=args.sample_size,
+            manifest_path=dataset_paths.manifest_path,
+            rate_limit_s=args.rate_limit,
+            legacy_predictions=args.legacy_predictions,
+            run_id=run_id,
+            bootstrap_method=args.bootstrap_method,
+            bootstrap_resamples=args.bootstrap_resamples,
+            moondream_targets=moondream_targets,
+            moondream_endpoint=args.moondream_endpoint,
+            replicate_model_version=replicate_model_version,
+            replicate_targets=tuple(replicate_targets_arg) if replicate_targets_arg else None,
+            replicate_instructions=replicate_target_instructions,
+            replicate_cache_dir=replicate_cache_dir,
+        )
+        dump_run_config(config, paths["run_config"])
+
+        predictions = load_existing_predictions(paths["predictions_jsonl"])
+        metrics_map = load_metrics(paths["metrics"])
+        gt_lookup = {img.name: gt for img, gt in image_mask_pairs}
+
+        missing_artifacts = set()
+        for name, record in predictions.items():
+            if record.prediction_path and record.prediction_path.exists():
+                if name not in metrics_map and name in gt_lookup:
+                    gt_array = np.array(Image.open(gt_lookup[name]))
+                    pred_array = np.array(Image.open(record.prediction_path))
+                    iou, dice, success = compute_metrics_for_masks(
+                        gt_array, [pred_array], success_threshold=args.success_threshold
+                    )
+                    metrics_map = upsert_metrics(
+                        metrics_map,
+                        PerImageMetrics(image_name=name, iou=iou, dice=dice, success=success),
+                        metrics_path=paths["metrics"],
+                        summary_path=paths["summary"],
+                        n_resamples=args.bootstrap_resamples,
+                        method=args.bootstrap_method,
+                    )
+            else:
+                missing_artifacts.add(name)
+            if record.overlay_path and not record.overlay_path.exists():
+                missing_artifacts.add(name)
+
+        pending_pairs: List[Tuple[Path, Path]] = []
+        for img_path, gt_mask_path in image_mask_pairs:
+            if img_path.name in missing_artifacts or img_path.name not in predictions:
+                pending_pairs.append((img_path, gt_mask_path))
+
+        if args.dry_run:
+            logging.info(
+                "Dry run (%s): %s images need processing", prompt_key, len(pending_pairs)
+            )
+            for img_path, _ in pending_pairs:
+                logging.info("Pending: %s", img_path.name)
+            continue
+
+        thread_local = threading.local()
+
+        def get_segmenter() -> SegmenterProtocol:
+            if not hasattr(thread_local, "segmenter"):
+                if run_provider == "moondream":
+                    thread_local.segmenter = MoondreamSegmenter(
+                        model_name=model_name,
+                        prompt=prompt,
+                        timeout_s=args.timeout,
+                        targets=moondream_targets,
+                        endpoint=args.moondream_endpoint,
+                        api_key=args.moondream_api_key,
+                    )
+                elif run_provider == "replicate":
+                    replicate_model_name = replicate_model_version or model_name
+                    thread_local.segmenter = Sa2VAReplicateSegmenter(
+                        model_name=replicate_model_name,
+                        model_version=replicate_model_version or model_name,
+                        instruction=prompt,
+                        timeout_s=args.timeout,
+                        targets=replicate_targets_arg,
+                        instructions=replicate_target_instructions,
+                        cache_dir=replicate_cache_dir,
+                    )
+                else:
+                    thread_local.segmenter = GeminiSegmenter(
+                        model_name=model_name,
+                        prompt=prompt,
+                        temperature=args.temperature,
+                        thinking_budget=args.thinking_budget,
+                        timeout_s=args.timeout,
+                    )
+            return thread_local.segmenter
+
+        futures = {}
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            for img_path, gt_mask_path in pending_pairs:
+                futures[
+                    executor.submit(
+                        lambda p=img_path: _process_image(get_segmenter(), p, rate_limiter)
+                    )
+                ] = (img_path, gt_mask_path)
+
+            for future in as_completed(futures):
+                img_path, gt_mask_path = futures[future]
+                img_name, masks, latency, parse_success, timed_out, raw_items = future.result()
+                mask_arrays = [m.mask for m in masks]
+                mask_save_path = paths["masks"] / img_name
+                gt_array = np.array(Image.open(gt_mask_path))
+                combined_mask = combine_masks(mask_arrays) if mask_arrays else np.zeros_like(gt_array)
+                save_mask_png(combined_mask, mask_save_path)
+
+                overlay_path = paths["overlays"] / img_name
+                overlay = plot_segmentation_masks(Image.open(img_path), masks)
+                overlay.save(overlay_path)
+
+                iou, dice, success = compute_metrics_for_masks(
+                    gt_array, mask_arrays, success_threshold=args.success_threshold
+                )
+                metrics_map = upsert_metrics(
+                    metrics_map,
+                    PerImageMetrics(image_name=img_name, iou=iou, dice=dice, success=success),
+                    metrics_path=paths["metrics"],
+                    summary_path=paths["summary"],
+                    n_resamples=args.bootstrap_resamples,
+                    method=args.bootstrap_method,
+                )
+
+                legacy_json_path = None
+                raw_response_payload = raw_items or None
+                if args.legacy_predictions:
+                    legacy_dir = dataset_root / f"predictions_{model_label}"
+                    legacy_json_path = legacy_dir / f"{img_name}.json"
+                    _write_legacy_prediction(mask_arrays, legacy_json_path, raw_response_payload)
+
+                raw_response_path = None
+                if raw_response_payload is not None:
+                    raw_response_path = paths["raw_responses"] / f"{img_name}.json"
+                    raw_response_path.write_text(json.dumps(raw_response_payload))
+
+                predictions[img_name] = {
+                    "image_name": img_name,
+                    "latency_s": latency,
+                    "parse_success": parse_success,
+                    "timed_out": timed_out,
+                    "num_masks": len(mask_arrays),
+                    "prediction_path": str(mask_save_path),
+                    "overlay_path": str(overlay_path),
+                    "metrics": {"iou": iou, "dice": dice, "success": success},
+                    "legacy_json_path": str(legacy_json_path) if legacy_json_path else None,
+                    "raw_response_path": str(raw_response_path) if raw_response_path else None,
+                    "provider": run_provider,
+                    "prompt_family": prompt_family,
+                }
+
+                write_prediction_jsonl(predictions.values(), paths["predictions_jsonl"], mode="w")
+
+        if metrics_map:
+            summary = aggregate_from_map(
+                metrics_map, n_resamples=args.bootstrap_resamples, method=args.bootstrap_method
+            )
+            write_summary(summary, paths["summary"])
+
+        logging.info(
+            "Segmentation run complete for %s. Outputs at %s", prompt_key, paths["run_dir"]
+        )
 
 
 def command_fairness(args: argparse.Namespace) -> None:
@@ -467,8 +543,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     seg.add_argument(
         "--prompt-family",
+        action="append",
         choices=[p.value for p in PromptFamily],
-        help="Select a structured prompt family (overrides prompt_preset family if provided)",
+        help=(
+            "Select one or more structured prompt families (repeat flag to evaluate multiple;"
+            " overrides prompt_preset family if provided)"
+        ),
     )
     seg.add_argument("--thinking-budget", type=int, default=0, help="Thinking budget tokens")
     seg.add_argument("--temperature", type=float, default=0.5, help="Sampling temperature")

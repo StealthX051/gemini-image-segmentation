@@ -195,8 +195,16 @@ def test_cli_parses_replicate_args_into_run_config() -> None:
             mock_discover.return_value = types.SimpleNamespace(
                 manifest_path=manifest_path, masks_dir=masks_dir
             )
+            run_dir = (
+                Path(tmp_dir)
+                / "results"
+                / "polyp"
+                / "sa2va/segmenter:1234"
+                / "prompt-1234"
+                / "run"
+            )
             mock_prepare_dirs.return_value = {
-                "run_dir": Path(tmp_dir) / "run",
+                "run_dir": run_dir,
                 "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
                 "masks": Path(tmp_dir) / "masks_out",
                 "overlays": Path(tmp_dir) / "overlays",
