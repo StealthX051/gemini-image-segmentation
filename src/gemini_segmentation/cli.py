@@ -14,6 +14,7 @@ import pandas as pd
 from PIL import Image
 
 from .config import build_run_config, dump_run_config, load_preset, resolve_preset_name
+from .prompts import PromptFamily, build_prompt
 from .data import (
     DEFAULT_MANIFEST_TEMPLATE,
     discover_dataset,
@@ -159,13 +160,20 @@ def command_segment(args: argparse.Namespace) -> None:
                     f"Preset '{resolved_preset_name}' not found for branch '{args.preset_branch}'"
                 ) from exc
             raise
-        prompt = preset_cfg.get("prompt_text", prompt)
+        prompt_family = args.prompt_family or preset_cfg.get("prompt_family")
+        prompt_task = preset_cfg.get("prompt_task", args.dataset_name)
+        if prompt_family:
+            prompt = build_prompt(prompt_task, prompt_family)
+        else:
+            prompt = preset_cfg.get("prompt_text", prompt)
         if preset_cfg.get("model"):
             args.model_name = preset_cfg["model"]
         if preset_cfg.get("temperature") is not None:
             args.temperature = float(preset_cfg["temperature"])
         if preset_cfg.get("thinking_budget") is not None:
             args.thinking_budget = int(preset_cfg["thinking_budget"])
+    elif args.prompt_family:
+        prompt = build_prompt(args.dataset_name, args.prompt_family)
 
     run_id = args.run_id or _default_run_id()
     model_label = args.replicate_model_version if args.provider == "replicate" else args.model_name
@@ -454,8 +462,13 @@ def build_parser() -> argparse.ArgumentParser:
     seg.add_argument("--preset-name", default="default", help="Preset key to use when loading prompt-preset")
     seg.add_argument(
         "--preset-branch",
-        choices=["legacy", "hybrid"],
-        help="Optional branch suffix (e.g., 'hybrid' selects <preset_name>_hybrid)",
+        choices=["legacy"],
+        help="Optional branch suffix (e.g., 'legacy' selects the base preset)",
+    )
+    seg.add_argument(
+        "--prompt-family",
+        choices=[p.value for p in PromptFamily],
+        help="Select a structured prompt family (overrides prompt_preset family if provided)",
     )
     seg.add_argument("--thinking-budget", type=int, default=0, help="Thinking budget tokens")
     seg.add_argument("--temperature", type=float, default=0.5, help="Sampling temperature")

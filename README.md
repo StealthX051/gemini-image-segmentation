@@ -90,7 +90,7 @@ results/<dataset>/<model>/<run_id>/
   - `lits_liver` / `lits_liver_mass` → LiTS liver vs. liver-mass targets
   - `laparoscopy_uterus_tools` → uterus + surgical tools in laparoscopy frames
   - `histopathology` → tissue regions of diagnostic interest (tumor, stroma, necrosis, etc.)
-  - Hybrid variants (`*_hybrid`) provide parallel prompts with hybrid-expression wording; select them via `--preset-name polyp_hybrid` or by pairing `--preset-name polyp` with `--preset-branch hybrid`.
+  - Structured prompt families (`label_v1`, `desc_v1`, `desc_neg_v1`) can be selected explicitly via presets (e.g., `polyp_desc_neg_v1`) or by passing `--prompt-family` alongside `--dataset_name`/`--prompt-preset`; `desc_neg_v1` appends negation-only guardrails.
 - Override inline with `--prompt` or `--prompt-file`; the chosen text and model parameters are captured in `run_config.json` for reproducibility.
 
 ### Fairness analysis
