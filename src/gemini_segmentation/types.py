@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -64,6 +64,10 @@ class RunConfig:
     bootstrap_resamples: int = 5000
     moondream_targets: Optional[List[str]] = None
     moondream_endpoint: Optional[str] = None
+    replicate_model_version: Optional[str] = None
+    replicate_targets: Optional[Tuple[str, ...]] = None
+    replicate_instructions: Optional[Dict[str, str]] = None
+    replicate_cache_dir: Optional[Path] = None
 
 
 @dataclass
