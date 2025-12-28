@@ -22,31 +22,10 @@ optic_disc_cup:
   temperature: 0.5
   thinking_budget: 0
 
-polyp_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment the colorectal polyp described in the image and any accompanying referring expression. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use descriptive labels for polyps such as "colorectal polyp" when present.
-  temperature: 0.5
-  thinking_budget: 0
-
-optic_disc_cup_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment the optic disc and optic cup described in the image and any accompanying referring expressions. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the labels "optic disc" and "optic cup" for the respective structures.
-  temperature: 0.5
-  thinking_budget: 0
-
 derm_lesion:
   model: gemini-2.5-flash
   prompt_text: |
     Give the segmentation masks for all skin lesions. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
-  temperature: 0.5
-  thinking_budget: 0
-
-derm_lesion_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment all skin lesions described in the image and any accompanying referring expressions. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use descriptive lesion labels consistent with the referring description.
   temperature: 0.5
   thinking_budget: 0
 
@@ -57,24 +36,10 @@ busi_mass:
   temperature: 0.5
   thinking_budget: 0
 
-busi_mass_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment the breast mass described in the ultrasound image and any accompanying referring expression. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use a descriptive label such as "mass" consistent with the referring phrase.
-  temperature: 0.5
-  thinking_budget: 0
-
 pneumothorax_cxr:
   model: gemini-2.5-flash
   prompt_text: |
     In this chest x-ray, give the segmentation mask for the pneumothorax. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "pneumothorax".
-  temperature: 0.5
-  thinking_budget: 0
-
-pneumothorax_cxr_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment the pneumothorax described in the chest x-ray image and any accompanying referring expression. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "pneumothorax".
   temperature: 0.5
   thinking_budget: 0
 
@@ -85,13 +50,6 @@ lits_liver:
   temperature: 0.5
   thinking_budget: 0
 
-lits_liver_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment the liver described in the abdominal CT slice and any accompanying referring expression. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "liver".
-  temperature: 0.5
-  thinking_budget: 0
-
 lits_liver_mass:
   model: gemini-2.5-flash
   prompt_text: |
@@ -99,27 +57,10 @@ lits_liver_mass:
   temperature: 0.5
   thinking_budget: 0
 
-lits_liver_mass_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment the liver mass described in the abdominal CT slice and any accompanying referring expression. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label". Use the label "liver mass".
-  temperature: 0.5
-  thinking_budget: 0
-
 laparoscopy_uterus_tools:
   model: gemini-2.5-flash
   prompt_text: |
     In this video frame from a laparoscopic hysterectomy, provide segmentation masks for the anatomy and surgical tools. Output a JSON list of segmentation masks.
-    - Use the label "uterus" for the uterus.
-    - Use the label "surgical tool" for any and all surgical instruments, including grasping forceps, LigaSure, hooks, and their shafts and manipulators. Combine all instrument parts into one category.
-    Each JSON entry must contain the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
-  temperature: 0.5
-  thinking_budget: 0
-
-laparoscopy_uterus_tools_hybrid_v1:
-  model: gemini-2.5-flash
-  prompt_text: |
-    Hybrid Referring Expression: Segment the uterus and surgical tools described in the laparoscopic hysterectomy frame and any accompanying referring expressions. Output a JSON list of segmentation masks.
     - Use the label "uterus" for the uterus.
     - Use the label "surgical tool" for any and all surgical instruments, including grasping forceps, LigaSure, hooks, and their shafts and manipulators. Combine all instrument parts into one category.
     Each JSON entry must contain the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
