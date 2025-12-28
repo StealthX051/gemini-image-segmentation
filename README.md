@@ -40,6 +40,12 @@ conda activate gemini-segmentation
 ```
 Ensure `.env` contains `GOOGLE_API_KEY`.
 
+For quick test runs without Conda, install the minimal test dependencies with:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 ### Commands
 - `segment`: Run Gemini or Moondream on a dataset without changing source files.
   - Required: `segment <dataset_name> <dataset_root>` (must contain `images/` and `masks/`, plus any existing manifest files).

@@ -125,6 +125,10 @@ class CommandSegmentBranchTests(TestCase):
                 bootstrap_method="bca",
                 bootstrap_resamples=5000,
                 dry_run=False,
+                replicate_model_version=None,
+                replicate_targets=None,
+                replicate_instructions=None,
+                replicate_cache_dir=None,
             )
 
             command_segment(args)
