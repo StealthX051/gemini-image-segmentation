@@ -43,7 +43,7 @@ from .metrics import (
     upsert_metrics,
     write_summary,
 )
-from .models import GeminiSegmenter, MoondreamSegmenter, ReplicateSegmenter
+from .models import GeminiSegmenter, MoondreamSegmenter, Sa2VAReplicateSegmenter
 from .types import PerImageMetrics, SegmentationMask
 
 
@@ -195,13 +195,14 @@ def command_segment(args: argparse.Namespace) -> None:
     moondream_targets = args.moondream_targets or None
 
     run_id = args.run_id or _default_run_id()
-    paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, args.model_name, run_id)
+    model_label = args.replicate_model_version if args.provider == "replicate" else args.model_name
+    paths = _prepare_output_dirs(Path(args.results_dir), args.dataset_name, model_label, run_id)
 
     config = build_run_config(
         dataset_name=args.dataset_name,
         dataset_root=dataset_root,
         prompt=prompt,
-        model_name=args.model_name,
+        model_name=model_label,
         provider=args.provider,
         thinking_budget=args.thinking_budget,
         temperature=args.temperature,
@@ -278,7 +279,8 @@ def command_segment(args: argparse.Namespace) -> None:
                     api_key=args.moondream_api_key,
                 )
             elif args.provider == "replicate":
-                thread_local.segmenter = ReplicateSegmenter(
+                thread_local.segmenter = Sa2VAReplicateSegmenter(
+                    model_name=args.model_name,
                     model_version=args.replicate_model_version,
                     instruction=prompt,
                     timeout_s=args.timeout,
@@ -331,7 +333,7 @@ def command_segment(args: argparse.Namespace) -> None:
 
             legacy_json_path = None
             if args.legacy_predictions:
-                legacy_dir = dataset_root / f"predictions_{args.model_name}"
+                legacy_dir = dataset_root / f"predictions_{model_label}"
                 legacy_json_path = legacy_dir / f"{img_name}.json"
                 _write_legacy_prediction(mask_arrays, legacy_json_path, raw_items)
 
