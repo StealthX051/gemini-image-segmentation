@@ -1,0 +1,16 @@
+numpy
+pandas
+pillow
+pyyaml
+scipy
+scikit-image
+matplotlib
+scikit-learn
+scikit-posthocs
+python-dotenv
+pingouin
+cliffs-delta
+opencv-python
+google-genai
+moondream
+cairosvg
