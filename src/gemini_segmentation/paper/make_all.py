@@ -46,7 +46,13 @@ def _load_results(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".csv":
         return pd.read_csv(path)
     if path.suffix.lower() in {".parquet", ".pq"}:
-        return pd.read_parquet(path)
+        try:
+            return pd.read_parquet(path)
+        except ImportError as exc:  # pragma: no cover - only hit when dependency is missing
+            raise ImportError(
+                "Reading Parquet results requires optional dependency 'pyarrow' or"
+                " 'fastparquet'. Install one of these packages to continue."
+            ) from exc
     raise ValueError(f"Unsupported results extension: {path.suffix}")
 
 
@@ -67,6 +73,20 @@ def _append_display_columns(df: pd.DataFrame, config: PaperConfig) -> pd.DataFra
             lambda v: _display_value(v, config.prompt_strategies)
         )
     return df
+
+
+def _required_columns_for_artifacts(config: PaperConfig) -> set[str]:
+    required: set[str] = set(config.required_columns)
+    for table in config.tables:
+        required.add(table.metric)
+        required.update(table.group_by)
+    for figure in config.figures:
+        required.add(figure.metric)
+        required.update(figure.group_by)
+        required.add(figure.x)
+        if figure.hue:
+            required.add(figure.hue)
+    return required
 
 
 def _statistic(values: List[float], statistic: str) -> float:
@@ -217,7 +237,7 @@ def generate_artifacts(
 
     LOGGER.info("Loading results from %s", results_path)
     df = _load_results(results_path)
-    _validate_columns(df, config.required_columns)
+    _validate_columns(df, _required_columns_for_artifacts(config))
     df = _append_display_columns(df, config)
 
     table_dir = artifacts_dir / "tables"

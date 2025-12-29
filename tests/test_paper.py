@@ -42,3 +42,40 @@ def test_generate_artifacts_creates_outputs(tmp_path: Path):
     table_df = pd.read_csv(tables_dir / "table1.csv")
     assert "Iou Mean" in table_df.columns
     assert not table_df.empty
+
+
+def test_generate_artifacts_parquet(tmp_path: Path):
+    results = pd.DataFrame(
+        {
+            "task": ["polyp", "optic"],
+            "model": ["gemini-2.5-flash", "gemini-1.5-pro"],
+            "prompt_strategy": ["label_v1", "desc_v1"],
+            "iou": [0.75, 0.6],
+            "dice": [0.8, 0.62],
+            "success": [1, 0],
+        }
+    )
+    results_path = tmp_path / "results.parquet"
+    results.to_parquet(results_path)
+
+    artifacts_dir = tmp_path / "artifacts"
+    generate_artifacts(results_path, artifacts_dir=artifacts_dir)
+
+    assert (artifacts_dir / "tables" / "table1.csv").exists()
+
+
+def test_generate_artifacts_missing_columns(tmp_path: Path):
+    results = pd.DataFrame(
+        {
+            "task": ["polyp"],
+            "model": ["gemini-2.5-flash"],
+            "prompt_strategy": ["label_v1"],
+            "iou": [0.7],
+            "success": [1],
+        }
+    )
+    results_path = tmp_path / "results.csv"
+    results.to_csv(results_path, index=False)
+
+    with pytest.raises(ValueError, match="Missing required columns: dice"):
+        generate_artifacts(results_path, artifacts_dir=tmp_path / "artifacts")

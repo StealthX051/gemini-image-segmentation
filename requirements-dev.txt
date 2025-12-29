@@ -16,3 +16,4 @@ replicate
 moondream
 cairosvg
 python-docx
+pyarrow
