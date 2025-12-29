@@ -302,13 +302,35 @@ def command_segment(args: argparse.Namespace) -> None:
         replicate_targets_arg = base_replicate_targets
         replicate_instructions_arg = base_replicate_instructions
 
+        initial_targets_override: List[str] | None
+        initial_instruction_overrides: Dict[str, str] | None
+
+        if run_provider == "moondream":
+            initial_targets_override = args.moondream_targets
+            initial_instruction_overrides = None
+        elif run_provider == "replicate":
+            initial_targets_override = base_replicate_targets
+            initial_instruction_overrides = (
+                {
+                    target: instruction
+                    for target, instruction in zip(
+                        base_replicate_targets or [], base_replicate_instructions or []
+                    )
+                }
+                if base_replicate_targets and base_replicate_instructions
+                else None
+            )
+        else:
+            initial_targets_override = None
+            initial_instruction_overrides = None
+
         provider_prompt = _resolve_provider_prompt(
             provider=run_provider,
             prompt_family=prompt_family,
             explicit_prompt=explicit_prompt,
             prompt_task=prompt_task,
-            target_overrides=None,
-            replicate_instruction_overrides=None,
+            target_overrides=initial_targets_override,
+            replicate_instruction_overrides=initial_instruction_overrides,
         )
         prompt_payload = _prompt_payload(run_provider, prompt_family, provider_prompt)
         prompt_hash = _prompt_hash(prompt_payload)
