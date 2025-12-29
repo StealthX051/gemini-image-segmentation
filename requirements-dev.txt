@@ -16,4 +16,5 @@ replicate
 moondream
 cairosvg
 python-docx
+fastparquet
 pyarrow
