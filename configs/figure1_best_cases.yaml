@@ -1,0 +1,19 @@
+model: gemini-2.5-flash
+prompt_strategy: desc_v1
+results_root: results
+
+# Per-dataset targets used for labeling the montage. Optionally provide
+# run_dir to force a specific run instead of auto-discovery.
+tasks:
+  polyp:
+    targets: [colorectal polyp]
+  optic:
+    targets: [optic disc, optic cup]
+  derm:
+    targets: [skin lesion]
+  busi:
+    targets: [breast mass]
+  pneumo:
+    targets: [pneumothorax]
+  lits:
+    targets: [liver lesion]
