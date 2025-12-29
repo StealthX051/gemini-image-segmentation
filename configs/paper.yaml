@@ -1,0 +1,58 @@
+# Registry for paper tables/figures and display names
+required_columns:
+  - task
+  - model
+  - prompt_strategy
+  - iou
+  - dice
+  - success
+
+bootstrap_resamples: 2000
+bootstrap_method: bca
+
+models:
+  gemini-2.5-flash: Gemini 2.5 Flash
+  gemini-2.5-flash-lite: Gemini 2.5 Flash Lite
+  gemini-1.5-pro: Gemini 1.5 Pro
+
+prompt_strategies:
+  label_v1: Label only
+  desc_v1: Descriptive
+  desc_neg_v1: Descriptive + guardrails
+
+tasks:
+  polyp: Polyp
+  optic: Optic disc/cup
+  derm: Dermatology
+  busi: BUSI mass
+  pneumo: Pneumothorax CXR
+  lits: LiTS liver
+
+# Table and figure definitions
+# Tables automatically emit CSV/HTML/DOCX.
+tables:
+  table1:
+    title: "Table 1: Mean IoU by dataset and model"
+    metric: iou
+    statistic: mean
+    group_by: [task, model]
+  table2:
+    title: "Table 2: Mean Dice by prompt strategy"
+    metric: dice
+    statistic: mean
+    group_by: [task, prompt_strategy]
+  table3:
+    title: "Table 3: Success rate by model and prompt"
+    metric: success
+    statistic: mean
+    group_by: [model, prompt_strategy]
+
+# Figures automatically emit PNG/PDF (placeholder bar charts).
+figures:
+  figure1:
+    title: "Figure 1: IoU by prompt strategy (placeholder)"
+    metric: iou
+    statistic: mean
+    x: prompt_strategy
+    hue: model
+    group_by: [prompt_strategy, model]

@@ -106,6 +106,11 @@ results/<dataset>/<model>/<run_id>/
 - Mirrors the notebook ITA pipeline: peri-lesional masking, luminance filtering (5–95th percentiles), ≥2% area and ≥200 valid-pixel thresholds, median ITA → Chardon labels → Light/Dark split.
 - Reports per-group IoU/Dice means/medians with BCa CIs, Kruskal–Wallis, pairwise Dunn with Holm–Bonferroni correction, Cliff’s Delta effect sizes (with bootstrap CIs), and χ² comparisons of success rates.
 
+### Paper artifacts
+- One-command entry point: `python -m gemini_segmentation.paper.make_all --results <path/to/long_form_results.csv>` (Parquet is also supported).
+- The YAML registry in `configs/paper.yaml` documents the expected columns (task/model/prompt_strategy/iou/dice/success), naming for models/prompts/tasks, and the specifications for Tables 1–3 and Figure 1.
+- Artifacts land in `artifacts/` by default with `tables/*.csv|html|docx` and `figures/*.png|pdf`. Update `--artifacts` to redirect output when running in CI.
+
 ## Extending the project
 - **New datasets**: Add discovery helpers or manifest builders in `src/gemini_segmentation/data.py` if layout differs; keep `images/`/`masks/` naming stable to reuse the CLI.
 - **New prompts/models**: Add YAML presets or extend `src/gemini_segmentation/models.py` to register additional providers while honoring the `segment_image` contract.
