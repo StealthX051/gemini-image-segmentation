@@ -126,9 +126,9 @@ def _resolve_provider_prompt(
         if targets:
             for target in targets:
                 instructions.setdefault(target, f"Segment the {target}.")
-        primary_instruction = instructions.get(
-            targets[0], base_prompt.prompt if targets else base_prompt.prompt
-        )
+        primary_instruction = base_prompt.prompt
+        if targets:
+            primary_instruction = instructions.get(targets[0], base_prompt.prompt)
         return ProviderPrompt(
             prompt=primary_instruction,
             targets=targets or None,
