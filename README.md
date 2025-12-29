@@ -107,9 +107,9 @@ results/<dataset>/<model>/<run_id>/
 - Reports per-group IoU/Dice means/medians with BCa CIs, Kruskal–Wallis, pairwise Dunn with Holm–Bonferroni correction, Cliff’s Delta effect sizes (with bootstrap CIs), and χ² comparisons of success rates.
 
 ### Paper artifacts
-- One-command entry point: `python -m gemini_segmentation.paper.make_all --results <path/to/long_form_results.csv>` (Parquet is also supported).
-- The YAML registry in `configs/paper.yaml` documents the expected columns (task/model/prompt_strategy/iou/dice/success), naming for models/prompts/tasks, and the specifications for Tables 1–3 and Figure 1.
-- Artifacts land in `artifacts/` by default with `tables/*.csv|html|docx` and `figures/*.png|pdf`. Update `--artifacts` to redirect output when running in CI.
+- **Tables/Figure placeholders:** `python -m gemini_segmentation.paper.make_all --results <path/to/long_form_results.csv>` (Parquet is also supported). The YAML registry in `configs/paper.yaml` documents required columns (task/model/prompt_strategy/iou/dice/success), display labels, and specifications for each table/figure. Artifacts land in `artifacts/` by default with `tables/*.csv|html|docx` and `figures/*.png|pdf`; override with `--artifacts` for CI.
+- **Figure 1 best cases:** `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml` selects the highest-IoU image per configured dataset/target (persisting selection to `artifacts/figures/figure1_best_cases/selection.yaml`) and renders the montage to PDF/PNG in the same directory.
+- **Fairness Figure 2 + Table 4:** `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>` consumes the ITA fairness CSVs from a completed run and emits the four-panel plot plus Table 4 to `artifacts/fairness/` (paths are configurable via `--output-dir`).
 
 ## Extending the project
 - **New datasets**: Add discovery helpers or manifest builders in `src/gemini_segmentation/data.py` if layout differs; keep `images/`/`masks/` naming stable to reuse the CLI.
