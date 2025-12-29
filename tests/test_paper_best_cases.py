@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 import yaml
 from PIL import Image
 
@@ -95,3 +96,32 @@ def test_generate_best_case_montage_respects_persisted_selection(tmp_path: Path)
     assert second_png == png_path
     persisted = yaml.safe_load(selection_path.read_text())
     assert persisted["polyp"]["image_name"] == "img_b.png"
+
+
+def test_generate_best_case_montage_validates_selection(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_payload = {
+        "model": "gemini-2.5-flash",
+        "prompt_strategy": "desc_v1",
+        "tasks": {"polyp": {"targets": ["colorectal polyp"]}},
+    }
+    config_path.write_text(yaml.safe_dump(config_payload))
+
+    selection_path = tmp_path / "selection.yaml"
+    selection_payload = {
+        "other": {
+            "image_name": "foo.png",
+            "image_path": "foo.png",
+            "gt_mask_path": "bar.png",
+            "pred_mask_path": "baz.png",
+            "run_dir": "runs",
+        }
+    }
+    selection_path.write_text(yaml.safe_dump(selection_payload))
+
+    with pytest.raises(ValueError):
+        generate_best_case_montage(
+            config_path=config_path,
+            selection_path=selection_path,
+            artifacts_dir=tmp_path / "artifacts",
+        )

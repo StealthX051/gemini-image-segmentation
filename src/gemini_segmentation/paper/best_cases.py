@@ -183,6 +183,32 @@ def _selection_from_yaml(path: Path) -> Dict[str, SelectedImage]:
     return selections
 
 
+def _validate_loaded_selection(selection: Mapping[str, SelectedImage], tasks: Mapping[str, TaskSelection]) -> None:
+    missing = [dataset for dataset in tasks if dataset not in selection]
+    if missing:
+        raise ValueError(
+            "Persisted selection does not cover configured datasets: " + ", ".join(sorted(missing))
+        )
+
+    extras = [dataset for dataset in selection if dataset not in tasks]
+    if extras:
+        raise ValueError(
+            "Persisted selection includes datasets not present in config: " + ", ".join(sorted(extras))
+        )
+
+    for dataset, sel in selection.items():
+        for path_name in ["image_path", "gt_mask_path", "pred_mask_path"]:
+            candidate = getattr(sel, path_name)
+            if not candidate.exists():
+                raise FileNotFoundError(
+                    f"Persisted selection for {dataset} references missing file: {candidate}"
+                )
+        if sel.run_dir and not sel.run_dir.exists():
+            raise FileNotFoundError(
+                f"Persisted selection for {dataset} references missing run directory: {sel.run_dir}"
+            )
+
+
 def _persist_selection(path: Path, selections: Mapping[str, SelectedImage]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload: MutableMapping[str, dict] = {}
@@ -203,7 +229,9 @@ def _persist_selection(path: Path, selections: Mapping[str, SelectedImage]) -> N
 def _select_best_images(config: BestCaseConfig, selection_path: Optional[Path]) -> Dict[str, SelectedImage]:
     if selection_path and selection_path.exists():
         LOGGER.info("Loading existing selection from %s", selection_path)
-        return _selection_from_yaml(selection_path)
+        selections = _selection_from_yaml(selection_path)
+        _validate_loaded_selection(selections, config.tasks)
+        return selections
 
     selections: Dict[str, SelectedImage] = {}
     for dataset, task in config.tasks.items():
