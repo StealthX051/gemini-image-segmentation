@@ -43,7 +43,7 @@ conda activate gemini-segmentation
 ```
 Ensure `.env` contains `GOOGLE_API_KEY`.
 
-For quick test runs without Conda, install the minimal test dependencies with:
+For quick test runs without Conda, install the minimal test dependencies (including `numpy`) with:
 
 ```bash
 pip install -r requirements-dev.txt
