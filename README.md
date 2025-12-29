@@ -93,6 +93,14 @@ results/<dataset>/<model>/<run_id>/
   - Structured prompt families (`label_v1`, `desc_v1`, `desc_neg_v1`) can be selected explicitly via presets (e.g., `polyp_desc_neg_v1`) or by passing `--prompt-family` alongside `--dataset_name`/`--prompt-preset`; `desc_neg_v1` appends negation-only guardrails.
 - Override inline with `--prompt` or `--prompt-file`; the chosen text and model parameters are captured in `run_config.json` for reproducibility.
 
+#### Prompt families and provider-aware shaping
+- **Ablation families:** All tasks support three prompt families held constant across providers. `label_v1` uses only the class name; `desc_v1` adds modality context + short definition + stable attributes; `desc_neg_v1` equals `desc_v1` plus an exclusions block (the negation block is appended byte-for-byte so the only delta is the exclusions text). Families can be enumerated via `--prompt-family` or comma-separated with `--prompt-families` to evaluate all three per image.
+- **Provider-specific construction:**
+  - **Gemini** receives the full JSON-schema prompt (keys `box_2d`, `mask`, `label`) built via the selected family.
+  - **Moondream** ignores the JSON schema; it receives the target label(s) as the `object` string(s). Use `--moondream-target` overrides for multi-target tasks; otherwise the preset label(s) are sent.
+  - **Replicate/Sa2VA** expects natural-language instructions rather than schemas. Each target gets a concise instruction like `Segment the optic disc.`; overrides can be provided with `--replicate-instruction` to align custom wording per label.
+- **Caching/resume:** Cache keys include provider, prompt family, and a hash of the provider-specific payload to avoid collisions between JSON-schema prompts (Gemini) and object/instruction strings (Moondream/Replicate).
+
 ### Fairness analysis
 - Consumes the masks/metrics from a completed `segment` run; does not rerun Gemini.
 - Mirrors the notebook ITA pipeline: peri-lesional masking, luminance filtering (5–95th percentiles), ≥2% area and ≥200 valid-pixel thresholds, median ITA → Chardon labels → Light/Dark split.
