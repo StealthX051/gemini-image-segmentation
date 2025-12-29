@@ -123,9 +123,12 @@ def _resolve_provider_prompt(
         instructions = dict(base_prompt.instructions or {})
         if replicate_instruction_overrides:
             instructions.update(replicate_instruction_overrides)
-        if not instructions and targets:
-            instructions = {t: f"Segment the {t}." for t in targets}
-        primary_instruction = instructions.get(targets[0], base_prompt.prompt if targets else base_prompt.prompt)
+        if targets:
+            for target in targets:
+                instructions.setdefault(target, f"Segment the {target}.")
+        primary_instruction = instructions.get(
+            targets[0], base_prompt.prompt if targets else base_prompt.prompt
+        )
         return ProviderPrompt(
             prompt=primary_instruction,
             targets=targets or None,

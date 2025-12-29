@@ -33,7 +33,12 @@ sys.modules.setdefault("google", google_module)
 sys.modules.setdefault("google.genai", genai_module)
 sys.modules.setdefault("google.genai.types", genai_types_module)
 
-from gemini_segmentation.cli import _prompt_hash, build_parser, command_segment
+from gemini_segmentation.cli import (
+    _prompt_hash,
+    _resolve_provider_prompt,
+    build_parser,
+    command_segment,
+)
 from gemini_segmentation.prompts import ProviderPrompt
 
 
@@ -449,6 +454,31 @@ class PromptHashTests(TestCase):
         payload_gemini = {"provider": "gemini", "family": "label_v1", "prompt": "t"}
         payload_moondream = {"provider": "moondream", "family": "label_v1", "prompt": "t"}
         self.assertNotEqual(_prompt_hash(payload_gemini), _prompt_hash(payload_moondream))
+
+
+class ProviderPromptResolutionTests(TestCase):
+    @mock.patch(
+        "gemini_segmentation.cli.build_prompt_for_provider",
+        return_value=ProviderPrompt(
+            prompt="Segment the colorectal polyp.",
+            targets=("colorectal polyp",),
+            instructions={"colorectal polyp": "Segment the colorectal polyp."},
+        ),
+    )
+    def test_replicate_overrides_fill_missing_instructions(self, _mock_build_prompt) -> None:
+        resolved = _resolve_provider_prompt(
+            provider="replicate",
+            prompt_family="label_v1",
+            explicit_prompt=None,
+            prompt_task="polyp",
+            target_overrides=["new target"],
+            replicate_instruction_overrides=None,
+        )
+
+        self.assertEqual(resolved.targets, ("new target",))
+        self.assertEqual(resolved.prompt, "Segment the new target.")
+        self.assertIn("new target", resolved.instructions)
+        self.assertEqual(resolved.instructions["new target"], "Segment the new target.")
 
 
 if __name__ == "__main__":
