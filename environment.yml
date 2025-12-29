@@ -15,6 +15,7 @@ dependencies:
   - pingouin
   - pandas
   - pyarrow
+  - fastparquet
   - cliffs_delta
   - opencv-python
   # ---- utilities ----
