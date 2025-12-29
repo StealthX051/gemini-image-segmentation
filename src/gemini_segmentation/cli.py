@@ -15,7 +15,7 @@ import pandas as pd
 from PIL import Image
 
 from .config import build_run_config, dump_run_config, load_preset, resolve_preset_name
-from .prompts import PromptFamily, build_prompt
+from .prompts import ProviderPrompt, PromptFamily, build_prompt_for_provider
 from .data import (
     DEFAULT_MANIFEST_TEMPLATE,
     discover_dataset,
@@ -53,15 +53,86 @@ def _default_run_id() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
-def _prompt_hash(prompt: str) -> str:
-    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8]
+def _prompt_hash(prompt_payload: Dict[str, object]) -> str:
+    serialized = json.dumps(prompt_payload, sort_keys=True)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:8]
 
 
-def _prompt_key(prompt: str, prompt_family: str | None = None, prompt_hash: str | None = None) -> str:
-    digest = prompt_hash or _prompt_hash(prompt)
+def _prompt_key(prompt_family: str | None = None, prompt_hash: str | None = None) -> str:
+    digest = prompt_hash or ""
     if prompt_family:
         return f"{prompt_family}-{digest}"
     return f"prompt-{digest}"
+
+
+def _prompt_payload(provider: str, prompt_family: str | None, prompt: ProviderPrompt) -> Dict[str, object]:
+    payload: Dict[str, object] = {"provider": provider, "prompt": prompt.prompt}
+    if prompt_family:
+        payload["family"] = prompt_family
+    if prompt.targets:
+        payload["targets"] = list(prompt.targets)
+    if prompt.instructions:
+        payload["instructions"] = dict(prompt.instructions)
+    return payload
+
+
+def _resolve_provider_prompt(
+    *,
+    provider: str,
+    prompt_family: str | None,
+    explicit_prompt: str | None,
+    prompt_task: str,
+    target_overrides: List[str] | None,
+    replicate_instruction_overrides: Dict[str, str] | None,
+) -> ProviderPrompt:
+    if prompt_family:
+        base_prompt = build_prompt_for_provider(
+            prompt_task,
+            prompt_family,
+            provider,
+            targets_override=target_overrides,
+        )
+    else:
+        if provider == "gemini":
+            base_prompt = ProviderPrompt(prompt=explicit_prompt or "")
+        elif provider == "moondream":
+            targets = tuple(target_overrides) if target_overrides else ()
+            if not targets and explicit_prompt:
+                targets = (explicit_prompt,)
+            primary = targets[0] if targets else explicit_prompt or ""
+            base_prompt = ProviderPrompt(prompt=primary, targets=targets or None)
+        elif provider == "replicate":
+            targets = tuple(target_overrides) if target_overrides else ()
+            if not targets and explicit_prompt:
+                targets = (explicit_prompt,)
+            instructions: Dict[str, str] = {}
+            if explicit_prompt and targets:
+                instructions = {t: explicit_prompt for t in targets}
+            primary = explicit_prompt or ""
+            base_prompt = ProviderPrompt(prompt=primary, targets=targets or None, instructions=instructions)
+        else:
+            base_prompt = ProviderPrompt(prompt=explicit_prompt or "")
+
+    if provider == "moondream":
+        targets = tuple(target_overrides) if target_overrides else base_prompt.targets
+        primary = targets[0] if targets else base_prompt.prompt
+        return ProviderPrompt(prompt=primary, targets=targets)
+
+    if provider == "replicate":
+        targets = tuple(target_overrides) if target_overrides else base_prompt.targets or ()
+        instructions = dict(base_prompt.instructions or {})
+        if replicate_instruction_overrides:
+            instructions.update(replicate_instruction_overrides)
+        if not instructions and targets:
+            instructions = {t: f"Segment the {t}." for t in targets}
+        primary_instruction = instructions.get(targets[0], base_prompt.prompt if targets else base_prompt.prompt)
+        return ProviderPrompt(
+            prompt=primary_instruction,
+            targets=targets or None,
+            instructions=instructions or None,
+        )
+
+    return base_prompt
 
 
 class RateLimiter:
@@ -198,21 +269,17 @@ def command_segment(args: argparse.Namespace) -> None:
         if preset_cfg.get("thinking_budget") is not None:
             args.thinking_budget = int(preset_cfg["thinking_budget"])
 
-    prompt_runs: List[tuple[str, str | None, str, str]] = []
+    prompt_runs: List[tuple[str | None, str | None]] = []
     seen_keys = set()
     if prompt_families:
         for family in prompt_families:
-            rendered_prompt = build_prompt(prompt_task, family)
-            prompt_hash = _prompt_hash(rendered_prompt)
-            prompt_key = _prompt_key(rendered_prompt, family, prompt_hash)
+            prompt_key = _prompt_key(prompt_family=family, prompt_hash=family)
             if prompt_key in seen_keys:
                 continue
             seen_keys.add(prompt_key)
-            prompt_runs.append((rendered_prompt, family, prompt_key, prompt_hash))
+            prompt_runs.append((family, None))
     else:
-        prompt_hash = _prompt_hash(prompt_text)
-        prompt_key = _prompt_key(prompt_text, None, prompt_hash)
-        prompt_runs.append((prompt_text, None, prompt_key, prompt_hash))
+        prompt_runs.append((None, prompt_text))
 
     run_id = args.run_id or _default_run_id()
     base_model_name = args.model_name
@@ -225,12 +292,24 @@ def command_segment(args: argparse.Namespace) -> None:
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    for prompt, prompt_family, prompt_key, prompt_hash in prompt_runs:
+    for prompt_family, explicit_prompt in prompt_runs:
         model_name = base_model_name
         run_provider = base_provider
         replicate_model_version = base_replicate_model_version
         replicate_targets_arg = base_replicate_targets
         replicate_instructions_arg = base_replicate_instructions
+
+        provider_prompt = _resolve_provider_prompt(
+            provider=run_provider,
+            prompt_family=prompt_family,
+            explicit_prompt=explicit_prompt,
+            prompt_task=prompt_task,
+            target_overrides=None,
+            replicate_instruction_overrides=None,
+        )
+        prompt_payload = _prompt_payload(run_provider, prompt_family, provider_prompt)
+        prompt_hash = _prompt_hash(prompt_payload)
+        prompt_key = _prompt_key(prompt_family, prompt_hash)
 
         model_label = (
             replicate_model_version if run_provider == "replicate" else model_name
@@ -294,19 +373,46 @@ def command_segment(args: argparse.Namespace) -> None:
             args.moondream_targets or existing_run_config.get("moondream_targets") or None
         )
 
+        provider_prompt = _resolve_provider_prompt(
+            provider=run_provider,
+            prompt_family=prompt_family,
+            explicit_prompt=explicit_prompt,
+            prompt_task=prompt_task,
+            target_overrides=moondream_targets
+            if run_provider == "moondream"
+            else replicate_targets_arg,
+            replicate_instruction_overrides=replicate_target_instructions,
+        )
+        if run_provider == "moondream" and not moondream_targets:
+            moondream_targets = list(provider_prompt.targets or []) or None
+        if run_provider == "replicate":
+            replicate_targets_arg = replicate_targets_arg or list(provider_prompt.targets or []) or None
+            replicate_target_instructions = (
+                dict(provider_prompt.instructions)
+                if provider_prompt.instructions
+                else replicate_target_instructions
+            )
+
+        prompt_payload = _prompt_payload(run_provider, prompt_family, provider_prompt)
+        prompt_hash = _prompt_hash(prompt_payload)
+        prompt_key = _prompt_key(prompt_family, prompt_hash)
+
         model_label = (
             replicate_model_version if run_provider == "replicate" else model_name
         )
         current_model_label = paths["run_dir"].parts[-3]
-        if model_label != current_model_label:
+        current_prompt_key = paths["run_dir"].parts[-2]
+        if model_label != current_model_label or prompt_key != current_prompt_key:
             paths = _prepare_output_dirs(
                 Path(args.results_dir), args.dataset_name, model_label, prompt_key, run_id
             )
 
+        resolved_prompt = provider_prompt.prompt
+
         config = build_run_config(
             dataset_name=args.dataset_name,
             dataset_root=dataset_root,
-            prompt=prompt,
+            prompt=resolved_prompt,
             prompt_family=prompt_family,
             prompt_hash=prompt_hash,
             model_name=model_label,
@@ -377,7 +483,7 @@ def command_segment(args: argparse.Namespace) -> None:
                 if run_provider == "moondream":
                     thread_local.segmenter = MoondreamSegmenter(
                         model_name=model_name,
-                        prompt=prompt,
+                        prompt=resolved_prompt,
                         timeout_s=args.timeout,
                         targets=moondream_targets,
                         endpoint=args.moondream_endpoint,
@@ -388,7 +494,7 @@ def command_segment(args: argparse.Namespace) -> None:
                     thread_local.segmenter = Sa2VAReplicateSegmenter(
                         model_name=replicate_model_name,
                         model_version=replicate_model_version or model_name,
-                        instruction=prompt,
+                        instruction=resolved_prompt,
                         timeout_s=args.timeout,
                         targets=replicate_targets_arg,
                         instructions=replicate_target_instructions,
@@ -397,7 +503,7 @@ def command_segment(args: argparse.Namespace) -> None:
                 else:
                     thread_local.segmenter = GeminiSegmenter(
                         model_name=model_name,
-                        prompt=prompt,
+                        prompt=resolved_prompt,
                         temperature=args.temperature,
                         thinking_budget=args.thinking_budget,
                         timeout_s=args.timeout,

@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import json
 import sys
 import tempfile
 import types
@@ -32,7 +33,8 @@ sys.modules.setdefault("google", google_module)
 sys.modules.setdefault("google.genai", genai_module)
 sys.modules.setdefault("google.genai.types", genai_types_module)
 
-from gemini_segmentation.cli import build_parser, command_segment
+from gemini_segmentation.cli import _prompt_hash, build_parser, command_segment
+from gemini_segmentation.prompts import ProviderPrompt
 
 
 class PresetBranchParserTests(TestCase):
@@ -142,7 +144,10 @@ class CommandSegmentBranchTests(TestCase):
 
 
 class PromptFamilyTests(TestCase):
-    @mock.patch("gemini_segmentation.cli.build_prompt", return_value="rendered prompt")
+    @mock.patch(
+        "gemini_segmentation.cli.build_prompt_for_provider",
+        return_value=ProviderPrompt(prompt="rendered prompt"),
+    )
     @mock.patch("gemini_segmentation.cli.dump_run_config")
     @mock.patch("gemini_segmentation.cli.build_run_config")
     @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
@@ -167,7 +172,7 @@ class PromptFamilyTests(TestCase):
         mock_load_metrics,
         mock_build_run_config,
         mock_dump_run_config,
-        mock_build_prompt,
+        mock_build_prompt_for_provider,
     ) -> None:
         mock_resolve.return_value = "polyp"
         mock_load_preset.return_value = {
@@ -234,11 +239,14 @@ class PromptFamilyTests(TestCase):
 
         mock_resolve.assert_called_once_with("polyp", None)
         mock_load_preset.assert_called_once_with(Path("configs/prompts.yaml"), "polyp")
-        mock_build_prompt.assert_called_once_with("polyp", "desc_neg_v1")
+        self.assertGreaterEqual(mock_build_prompt_for_provider.call_count, 1)
+        mock_build_prompt_for_provider.assert_any_call(
+            "polyp", "desc_neg_v1", "gemini", targets_override=None
+        )
 
 
 class MultiPromptFamilyTests(TestCase):
-    @mock.patch("gemini_segmentation.cli.build_prompt")
+    @mock.patch("gemini_segmentation.cli.build_prompt_for_provider")
     @mock.patch("gemini_segmentation.cli.dump_run_config")
     @mock.patch("gemini_segmentation.cli.build_run_config")
     @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
@@ -259,9 +267,14 @@ class MultiPromptFamilyTests(TestCase):
         mock_load_metrics,
         mock_build_run_config,
         mock_dump_run_config,
-        mock_build_prompt,
+        mock_build_prompt_for_provider,
     ) -> None:
-        mock_build_prompt.side_effect = ["prompt_a", "prompt_b"]
+        mock_build_prompt_for_provider.side_effect = [
+            ProviderPrompt(prompt="prompt_a"),
+            ProviderPrompt(prompt="prompt_a"),
+            ProviderPrompt(prompt="prompt_b"),
+            ProviderPrompt(prompt="prompt_b"),
+        ]
         with tempfile.TemporaryDirectory() as tmp_dir:
             dataset_root = Path(tmp_dir)
             manifest_path = dataset_root / "manifest.txt"
@@ -276,30 +289,29 @@ class MultiPromptFamilyTests(TestCase):
             run_dir_desc = (
                 Path(tmp_dir) / "results" / "polyp" / "gemini-2.5-flash" / "desc_v1" / "run"
             )
-            mock_prepare_dirs.side_effect = [
-                {
-                    "run_dir": run_dir_label,
-                    "predictions_jsonl": Path(tmp_dir) / "predictions_a.jsonl",
-                    "masks": Path(tmp_dir) / "masks_out",
-                    "overlays": Path(tmp_dir) / "overlays",
-                    "metrics": Path(tmp_dir) / "metrics.csv",
-                    "summary": Path(tmp_dir) / "summary.csv",
-                    "fairness": Path(tmp_dir) / "fairness",
-                    "run_config": Path(tmp_dir) / "run_config.json",
-                    "raw_responses": Path(tmp_dir) / "raw_responses",
-                },
-                {
-                    "run_dir": run_dir_desc,
-                    "predictions_jsonl": Path(tmp_dir) / "predictions_b.jsonl",
-                    "masks": Path(tmp_dir) / "masks_out",
-                    "overlays": Path(tmp_dir) / "overlays",
-                    "metrics": Path(tmp_dir) / "metrics.csv",
-                    "summary": Path(tmp_dir) / "summary.csv",
-                    "fairness": Path(tmp_dir) / "fairness",
-                    "run_config": Path(tmp_dir) / "run_config.json",
-                    "raw_responses": Path(tmp_dir) / "raw_responses",
-                },
-            ]
+            first_paths = {
+                "run_dir": run_dir_label,
+                "predictions_jsonl": Path(tmp_dir) / "predictions_a.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+            second_paths = {
+                "run_dir": run_dir_desc,
+                "predictions_jsonl": Path(tmp_dir) / "predictions_b.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+            mock_prepare_dirs.side_effect = [first_paths, first_paths, second_paths, second_paths]
 
             args = argparse.Namespace(
                 command="segment",
@@ -338,14 +350,21 @@ class MultiPromptFamilyTests(TestCase):
 
             command_segment(args)
 
-        self.assertEqual(mock_build_prompt.call_count, 2)
-        mock_build_prompt.assert_any_call("polyp", "label_v1")
-        mock_build_prompt.assert_any_call("polyp", "desc_v1")
-        self.assertEqual(mock_prepare_dirs.call_count, 2)
+        self.assertEqual(mock_build_prompt_for_provider.call_count, 4)
+        mock_build_prompt_for_provider.assert_any_call(
+            "polyp", "label_v1", "gemini", targets_override=None
+        )
+        mock_build_prompt_for_provider.assert_any_call(
+            "polyp", "desc_v1", "gemini", targets_override=None
+        )
+        self.assertEqual(mock_prepare_dirs.call_count, 4)
 
 
 class PromptKeyTests(TestCase):
-    @mock.patch("gemini_segmentation.cli.build_prompt", return_value="rendered prompt")
+    @mock.patch(
+        "gemini_segmentation.cli.build_prompt_for_provider",
+        return_value=ProviderPrompt(prompt="rendered prompt"),
+    )
     @mock.patch("gemini_segmentation.cli.dump_run_config")
     @mock.patch("gemini_segmentation.cli.build_run_config")
     @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
@@ -420,8 +439,16 @@ class PromptKeyTests(TestCase):
             command_segment(args)
 
         prompt_key_arg = mock_prepare_dirs.call_args[0][3]
-        expected_hash = hashlib.sha256("rendered prompt".encode("utf-8")).hexdigest()[:8]
+        payload = {"provider": "gemini", "family": "label_v1", "prompt": "rendered prompt"}
+        expected_hash = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:8]
         assert prompt_key_arg == f"label_v1-{expected_hash}"
+
+
+class PromptHashTests(TestCase):
+    def test_prompt_hash_varies_by_provider(self) -> None:
+        payload_gemini = {"provider": "gemini", "family": "label_v1", "prompt": "t"}
+        payload_moondream = {"provider": "moondream", "family": "label_v1", "prompt": "t"}
+        self.assertNotEqual(_prompt_hash(payload_gemini), _prompt_hash(payload_moondream))
 
 
 if __name__ == "__main__":

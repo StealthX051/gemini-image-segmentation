@@ -7,8 +7,9 @@ appends an additional negation block to discourage false positives.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict
+from typing import Dict, List, Mapping, Sequence
 
 SCHEMA_PREAMBLE = (
     "Supplementary Methods: Prompt Ablation for Medical Image Segmentation "
@@ -249,3 +250,74 @@ def build_prompt(task: str, family: str | PromptFamily) -> str:
         body = f"{desc_body}\n\n{negation}"
 
     return f"{SCHEMA_PREAMBLE}\n\n{body}"
+
+
+@dataclass(frozen=True)
+class ProviderPrompt:
+    """Container for provider-specific prompt material."""
+
+    prompt: str
+    targets: tuple[str, ...] | None = None
+    instructions: Mapping[str, str] | None = None
+
+
+DEFAULT_TARGETS: Dict[str, List[str]] = {
+    "polyp": ["colorectal polyp"],
+    "derm_lesion": ["skin lesion"],
+    "optic_disc_cup": ["optic disc", "optic cup"],
+    "laparoscopy_uterus_tools": ["uterus", "surgical tool"],
+    "busi_mass": ["mass"],
+    "lits_liver": ["liver"],
+    "lits_liver_mass": ["liver mass"],
+    "pneumothorax_cxr": ["pneumothorax"],
+    "histopathology": ["diagnostic tissue"],
+}
+
+
+def _default_targets(task: str, overrides: Sequence[str] | None = None) -> tuple[str, ...]:
+    if overrides:
+        return tuple(overrides)
+    task_key = task.lower()
+    if task_key not in DEFAULT_TARGETS:
+        raise KeyError(f"Unknown task '{task}'. Available: {', '.join(sorted(DEFAULT_TARGETS))}")
+    return tuple(DEFAULT_TARGETS[task_key])
+
+
+def _build_replicate_instructions(targets: Sequence[str]) -> Mapping[str, str]:
+    return {label: f"Segment the {label}." for label in targets}
+
+
+def build_prompt_for_provider(
+    task: str,
+    family: str | PromptFamily,
+    provider: str,
+    *,
+    targets_override: Sequence[str] | None = None,
+) -> ProviderPrompt:
+    """Render the appropriate prompt payload for a provider.
+
+    Gemini retains the JSON-schema prompt text from :func:`build_prompt`. Other providers
+    receive compact label- or instruction-focused text that avoids schema and parsing
+    directives.
+    """
+
+    normalized_provider = provider.lower()
+    targets = _default_targets(task, overrides=targets_override)
+
+    if normalized_provider == "gemini":
+        return ProviderPrompt(prompt=build_prompt(task, family))
+
+    if normalized_provider == "moondream":
+        primary = targets[0] if targets else task
+        return ProviderPrompt(prompt=primary, targets=targets)
+
+    if normalized_provider == "replicate":
+        instructions = _build_replicate_instructions(targets)
+        primary_instruction = instructions.get(targets[0], "") if targets else ""
+        return ProviderPrompt(
+            prompt=primary_instruction,
+            targets=targets,
+            instructions=instructions,
+        )
+
+    raise ValueError(f"Unsupported provider '{provider}'")
