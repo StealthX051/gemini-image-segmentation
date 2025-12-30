@@ -484,6 +484,153 @@ class ProviderPromptResolutionTests(TestCase):
         self.assertEqual(resolved.instructions["new target"], "Segment the new target.")
 
 
+class ReplicateValidationTests(TestCase):
+    @mock.patch("gemini_segmentation.cli._resolve_provider_prompt", return_value=ProviderPrompt(prompt="p"))
+    @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
+    @mock.patch("gemini_segmentation.cli.load_existing_predictions", return_value={})
+    @mock.patch("gemini_segmentation.cli.paired_masks", return_value=[])
+    @mock.patch("gemini_segmentation.cli.sample_images", return_value=[])
+    @mock.patch("gemini_segmentation.cli.read_manifest", return_value=[])
+    @mock.patch("gemini_segmentation.cli._prepare_output_dirs")
+    @mock.patch("gemini_segmentation.cli.discover_dataset")
+    def test_instruction_and_target_counts_must_match(
+        self,
+        mock_discover,
+        mock_prepare_dirs,
+        *_,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dataset_root = Path(tmp_dir) / "data"
+            mock_discover.return_value = SimpleNamespace(
+                manifest_path=dataset_root / "manifest.txt", masks_dir=dataset_root / "masks"
+            )
+            run_dir = Path(tmp_dir) / "results" / "polyp" / "replicate" / "label" / "run"
+            mock_prepare_dirs.return_value = {
+                "run_dir": run_dir,
+                "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+
+            args = argparse.Namespace(
+                command="segment",
+                dataset_name="polyp",
+                dataset_root=str(dataset_root),
+                manifest=None,
+                provider="replicate",
+                model_name="sa-1b",
+                prompt="",
+                prompt_file=None,
+                prompt_preset=None,
+                preset_name="default",
+                preset_branch=None,
+                moondream_targets=None,
+                moondream_endpoint=None,
+                moondream_api_key=None,
+                thinking_budget=0,
+                temperature=0.5,
+                timeout=1.0,
+                workers=1,
+                sample_size=None,
+                results_dir=tmp_dir,
+                run_id="run",
+                rate_limit=None,
+                legacy_predictions=False,
+                success_threshold=0.5,
+                bootstrap_method="bca",
+                bootstrap_resamples=5000,
+                dry_run=False,
+                replicate_model_version="1.0",
+                replicate_targets=["a", "b"],
+                replicate_instructions=["one"],
+                replicate_cache_dir=None,
+                prompt_family=None,
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "The number of --replicate-instruction flags must match --replicate-target entries.",
+            ):
+                command_segment(args)
+
+    @mock.patch("gemini_segmentation.cli._resolve_provider_prompt", return_value=ProviderPrompt(prompt="p"))
+    @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
+    @mock.patch("gemini_segmentation.cli.load_existing_predictions", return_value={})
+    @mock.patch("gemini_segmentation.cli.paired_masks", return_value=[])
+    @mock.patch("gemini_segmentation.cli.sample_images", return_value=[])
+    @mock.patch("gemini_segmentation.cli.read_manifest", return_value=[])
+    @mock.patch("gemini_segmentation.cli._prepare_output_dirs")
+    @mock.patch("gemini_segmentation.cli.discover_dataset")
+    def test_model_version_required_for_replicate_provider(
+        self,
+        mock_discover,
+        mock_prepare_dirs,
+        *_,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dataset_root = Path(tmp_dir) / "data"
+            mock_discover.return_value = SimpleNamespace(
+                manifest_path=dataset_root / "manifest.txt", masks_dir=dataset_root / "masks"
+            )
+            run_dir = Path(tmp_dir) / "results" / "polyp" / "replicate" / "label" / "run"
+            mock_prepare_dirs.return_value = {
+                "run_dir": run_dir,
+                "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+
+            args = argparse.Namespace(
+                command="segment",
+                dataset_name="polyp",
+                dataset_root=str(dataset_root),
+                manifest=None,
+                provider="replicate",
+                model_name="sa-1b",
+                prompt="",
+                prompt_file=None,
+                prompt_preset=None,
+                preset_name="default",
+                preset_branch=None,
+                moondream_targets=None,
+                moondream_endpoint=None,
+                moondream_api_key=None,
+                thinking_budget=0,
+                temperature=0.5,
+                timeout=1.0,
+                workers=1,
+                sample_size=None,
+                results_dir=tmp_dir,
+                run_id="run",
+                rate_limit=None,
+                legacy_predictions=False,
+                success_threshold=0.5,
+                bootstrap_method="bca",
+                bootstrap_resamples=5000,
+                dry_run=False,
+                replicate_model_version=None,
+                replicate_targets=["a"],
+                replicate_instructions=None,
+                replicate_cache_dir=None,
+                prompt_family=None,
+            )
+
+            with self.assertRaisesRegex(
+                ValueError, "--replicate-model-version is required when provider is 'replicate'"
+            ):
+                command_segment(args)
+
+
 def test_command_fairness_invokes_analyze_with_expected_arguments(tmp_path, monkeypatch):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
