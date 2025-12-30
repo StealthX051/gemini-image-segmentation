@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import TestCase, mock
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))
 
@@ -37,6 +39,7 @@ from gemini_segmentation.cli import (
     _prompt_hash,
     _resolve_provider_prompt,
     build_parser,
+    command_fairness,
     command_segment,
 )
 from gemini_segmentation.prompts import ProviderPrompt
@@ -479,6 +482,145 @@ class ProviderPromptResolutionTests(TestCase):
         self.assertEqual(resolved.prompt, "Segment the new target.")
         self.assertIn("new target", resolved.instructions)
         self.assertEqual(resolved.instructions["new target"], "Segment the new target.")
+
+
+def test_command_fairness_invokes_analyze_with_expected_arguments(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    masks_dir = run_dir / "masks"
+    masks_dir.mkdir()
+    mask_path = masks_dir / "img1.png"
+    mask_path.write_text("mask")
+
+    metrics_path = run_dir / "metrics.csv"
+    metrics_path.write_text("image_name,iou,dice,success\nimg1.png,0.5,0.6,True\n")
+
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+    manifest_path = dataset_root / "manifest.txt"
+    manifest_path.write_text("img1.png\n")
+
+    expected_pairs = [("img1.png", mask_path)]
+
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "discover_dataset",
+        lambda *_: SimpleNamespace(manifest_path=manifest_path, masks_dir=masks_dir),
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"], "read_manifest", lambda *_, **__: ["img1.png"]
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "sample_images",
+        lambda images, sample_size: images,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "paired_masks",
+        lambda images, masks_dir_arg: expected_pairs,
+    )
+
+    analyze_mock = mock.Mock(return_value=("results", "summaries", "stats"))
+    monkeypatch.setattr(sys.modules["gemini_segmentation.cli"], "analyze_fairness", analyze_mock)
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "write_fairness_results",
+        lambda *_, **__: None,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "write_fairness_summary",
+        lambda *_, **__: None,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "write_fairness_statistics",
+        lambda *_, **__: None,
+    )
+
+    args = argparse.Namespace(
+        dataset_name="dataset",
+        dataset_root=str(dataset_root),
+        run_dir=str(run_dir),
+        manifest=None,
+        bootstrap_method="abc",
+        bootstrap_resamples=10,
+        sample_size=None,
+        success_threshold=0.7,
+    )
+
+    command_fairness(args)
+
+    assert analyze_mock.call_count == 1
+    called_kwargs = analyze_mock.call_args.kwargs
+    assert called_kwargs["image_mask_pairs"] == expected_pairs
+    assert called_kwargs["prediction_masks_dir"] == masks_dir
+    assert called_kwargs["n_resamples"] == 10
+    assert called_kwargs["method"] == "abc"
+    assert called_kwargs["per_image_metrics"] == {"img1.png": (0.5, 0.6, True)}
+
+
+def test_command_fairness_raises_when_metrics_missing(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+    manifest_path = dataset_root / "manifest.txt"
+    manifest_path.write_text("")
+
+    masks_dir = run_dir / "masks"
+    masks_dir.mkdir()
+
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "discover_dataset",
+        lambda *_: SimpleNamespace(manifest_path=manifest_path, masks_dir=masks_dir),
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"], "read_manifest", lambda *_, **__: []
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "sample_images",
+        lambda images, sample_size: images,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"], "paired_masks", lambda *_, **__: []
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"], "analyze_fairness", mock.Mock()
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "write_fairness_results",
+        lambda *_, **__: None,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "write_fairness_summary",
+        lambda *_, **__: None,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "write_fairness_statistics",
+        lambda *_, **__: None,
+    )
+
+    args = argparse.Namespace(
+        dataset_name="dataset",
+        dataset_root=str(dataset_root),
+        run_dir=str(run_dir),
+        manifest=None,
+        bootstrap_method=None,
+        bootstrap_resamples=None,
+        sample_size=None,
+        success_threshold=0.7,
+    )
+
+    with pytest.raises(FileNotFoundError):
+        command_fairness(args)
 
 
 if __name__ == "__main__":
