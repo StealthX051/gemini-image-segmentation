@@ -40,6 +40,7 @@ The CLI mirrors the notebook behavior while consolidating outputs under `results
 ```bash
 conda env create -f environment.yml
 conda activate gemini-segmentation
+python -m pip install -e .
 ```
 Ensure `.env` contains `GOOGLE_API_KEY`.
 
