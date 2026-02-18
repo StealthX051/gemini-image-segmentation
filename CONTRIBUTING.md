@@ -15,12 +15,15 @@
 ## Code Layout
 - Runtime package: `src/gemini_segmentation/`.
 - Prompt and paper configuration: `configs/`.
+- Benchmark matrix configs: `configs/benchmarks/`.
+- Batch launcher script: `scripts/launch_batch.sh`.
 - Regression tests: `tests/`.
 - Legacy experiment notebooks: root `*.ipynb`.
 
 ## Local Validation
 - Full test run: `pytest -q`.
 - Prompt/CLI-focused checks: `pytest -q tests/test_prompts.py tests/test_cli.py`.
+- Batch-runner checks: `pytest -q tests/test_batch.py`.
 - Metrics-focused checks: `pytest -q tests/test_metrics.py`.
 - Provider adapter checks: `pytest -q tests/test_replicate_segmenter.py`.
 - Paper/fairness artifact checks: `pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py`.
@@ -32,12 +35,15 @@
 - For manuscript-facing method changes, update `docs/MANUSCRIPT_ALIGNMENT.md` in the same PR.
 - For any method-level change, add an entry to `docs/METHODS_CHANGELOG.md` in the same PR.
 - When changing output schemas or file names, update dependent paper/fairness code and tests.
+- For matrix orchestration changes, update `docs/BATCH_ORCHESTRATION.md`, `README.md`, and `llms.txt` in the same PR.
 - Prefer adding tests for behavior changes rather than only updating documentation.
 
 ## Data and Secrets
 - Do not commit API keys or `.env` contents.
 - Do not commit large generated artifacts from datasets unless explicitly requested.
 - Preserve dataset roots and source input files; write outputs to `results/` or configured artifact directories.
+- Generated runtime directories (`results/`, `outputs/`, `artifacts/`) are ignored by default via `.gitignore`.
+- If generated artifacts were tracked historically, untrack them with `git rm -r --cached <path>` instead of deleting local runtime files.
 
 ## Pull Request Checklist
 - Relevant tests pass locally or skipped tests are clearly explained.

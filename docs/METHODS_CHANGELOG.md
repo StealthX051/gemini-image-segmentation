@@ -43,6 +43,13 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Impact: improves run robustness for malformed/partial model outputs and prevents metric crashes on RGB/RGBA mask files.
 - Code anchors: `src/gemini_segmentation/cli.py`, `src/gemini_segmentation/metrics.py`, `src/gemini_segmentation/types.py`, `src/gemini_segmentation/config.py`, `tests/test_cli.py`, `tests/test_metrics.py`.
 
+### MTH-POSTHOC-005
+- Date: 2026-02-18.
+- Status: active.
+- Summary: standardized reproducible benchmark orchestration with a config-driven batch runner for prompt-ablation matrices and robotics ER benchmarking, including strict preflight checks, deterministic command assembly, and run-level status artifacts.
+- Impact: improves unattended execution reproducibility and auditability across dataset/model matrices without changing prompt semantics, provider contracts, or metric definitions.
+- Code anchors: `src/gemini_segmentation/batch.py`, `configs/benchmarks/ablation_robotics_canonical.yaml`, `scripts/launch_batch.sh`, `tests/test_batch.py`, `docs/BATCH_ORCHESTRATION.md`.
+
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.
 - Update `docs/MANUSCRIPT_ALIGNMENT.md` if semantics, contracts, or provider behavior changed.

@@ -1,0 +1,52 @@
+schema_version: 1
+study_id: ablation_robotics_canonical
+results_dir: results
+
+defaults:
+  provider: gemini
+  prompt_families:
+    - label_v1
+    - desc_v1
+    - desc_neg_v1
+  timeout: 60.0
+  max_retries: 5
+  workers: 4
+  rate_limit: 0.5
+  local_cache: true
+  local_cache_dir: results/.request_cache
+  gemini_explicit_cache: true
+  gemini_cache_ttl: 3600
+  thinking_budget: 0
+  temperature: 0.5
+  legacy_predictions: false
+  success_threshold: 0.5
+  bootstrap_method: bca
+  bootstrap_resamples: 5000
+
+models:
+  - name: gemini-2.5-flash
+    gemini_explicit_cache: true
+  - name: gemini-2.5-flash-lite
+    gemini_explicit_cache: true
+  - name: gemini-robotics-er-1.5-preview
+    gemini_explicit_cache: false
+
+datasets:
+  - name: polyp
+    root: ${POLYP_DATASET_ROOT}
+  - name: optic_disc_cup
+    root: ${OPTIC_DISC_CUP_DATASET_ROOT}
+  - name: derm_lesion
+    root: ${DERM_LESION_DATASET_ROOT}
+  - name: busi_mass
+    root: ${BUSI_MASS_DATASET_ROOT}
+  - name: pneumothorax_cxr
+    root: ${PNEUMOTHORAX_CXR_DATASET_ROOT}
+  - name: lits_liver
+    root: ${LITS_LIVER_DATASET_ROOT}
+  - name: lits_liver_mass
+    root: ${LITS_LIVER_MASS_DATASET_ROOT}
+  - name: laparoscopy_uterus_tools
+    root: ${LAPAROSCOPY_UTERUS_TOOLS_DATASET_ROOT}
+  - name: histopathology
+    root: ${HISTOPATHOLOGY_DATASET_ROOT}

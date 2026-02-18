@@ -45,6 +45,9 @@ This document keeps implementation changes aligned with:
 ## Reproducibility And Reporting
 - Keep `run_config.json` comprehensive for post hoc analyses and manuscript traceability.
 - Required traceability fields include provider, model identifier, prompt family, prompt hash, prompt text or provider-specific target/instruction payload, retry policy (`max_retries`), and bootstrap settings.
+- Matrix orchestration runs should record resolved benchmark configuration and execution status under `results/batches/<run_id>/` (`resolved_config.json`, `job_status.jsonl`, `summary.json`) so multi-model ablation batches are auditable.
+- Recommended run-id policy for matrix studies is `<study_id>_<YYYYMMDD-HHMMSS>`; reuse the same run-id only when explicitly resuming the same study settings.
+- Matrix configs should define the full three-family ablation (`label_v1`, `desc_v1`, `desc_neg_v1`) per job unless a sensitivity analysis explicitly narrows scope.
 - When method semantics change, update `src/gemini_segmentation/prompts.py`.
 - When method semantics change, update `configs/prompts.yaml`.
 - When method semantics change, update relevant tests in `tests/test_prompts.py` and `tests/test_cli.py`.

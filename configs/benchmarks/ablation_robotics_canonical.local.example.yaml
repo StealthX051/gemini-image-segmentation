@@ -1,0 +1,33 @@
+defaults:
+  workers: 8
+  rate_limit: 0.25
+  local_cache_dir: results/.request_cache
+
+datasets:
+  - name: polyp
+    root: /path/to/polyp_dataset_root
+    manifest: master_imagelist_polyp.txt
+  - name: optic_disc_cup
+    root: /path/to/optic_disc_cup_dataset_root
+    manifest: master_imagelist_optic_disc_cup.txt
+  - name: derm_lesion
+    root: /path/to/derm_lesion_dataset_root
+    manifest: master_imagelist_derm_lesion.txt
+  - name: busi_mass
+    root: /path/to/busi_mass_dataset_root
+    manifest: master_imagelist_busi_mass.txt
+  - name: pneumothorax_cxr
+    root: /path/to/pneumothorax_cxr_dataset_root
+    manifest: master_imagelist_pneumothorax_cxr.txt
+  - name: lits_liver
+    root: /path/to/lits_liver_dataset_root
+    manifest: master_imagelist_lits_liver.txt
+  - name: lits_liver_mass
+    root: /path/to/lits_liver_mass_dataset_root
+    manifest: master_imagelist_lits_liver_mass.txt
+  - name: laparoscopy_uterus_tools
+    root: /path/to/laparoscopy_uterus_tools_dataset_root
+    manifest: master_imagelist_laparoscopy_uterus_tools.txt
+  - name: histopathology
+    root: /path/to/histopathology_dataset_root
+    manifest: master_imagelist_histopathology.txt

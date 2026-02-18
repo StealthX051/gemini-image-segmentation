@@ -12,6 +12,7 @@ Repository-level instructions for coding agents working in this project.
 - Read `docs/ARCHITECTURE.md` before changing runtime logic.
 - Read `docs/MANUSCRIPT_ALIGNMENT.md` before changing providers, prompts, or manuscript-facing outputs.
 - Read `docs/METHODS_CHANGELOG.md` to understand baseline vs post hoc method versions.
+- Read `docs/BATCH_ORCHESTRATION.md` before changing unattended matrix-run behavior.
 - Read `docs/NOTEBOOKS.md` before touching notebook-stage artifacts.
 
 ## Environment Setup
@@ -23,6 +24,8 @@ Repository-level instructions for coding agents working in this project.
 ## Core Commands
 - Run segmentation: `python -m gemini_segmentation.cli segment <dataset_name> <dataset_root> [flags]`
 - Run fairness: `python -m gemini_segmentation.cli fairness <dataset_name> <dataset_root> <run_dir> [flags]`
+- Run benchmark matrix orchestration: `python -m gemini_segmentation.batch --config <configs/benchmarks/*.yaml> [flags]`
+- Run Windows full polyp 3x3 convenience benchmark: `.\scripts\run_polyp_full_3x3_w10.ps1`
 - Build paper artifacts: `python -m gemini_segmentation.paper.make_all --results <csv_or_parquet>`
 - Build Figure 1 montage: `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml`
 - Build fairness figure/table: `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>`
@@ -35,8 +38,9 @@ Repository-level instructions for coding agents working in this project.
 - `src/gemini_segmentation/metrics.py`: IoU/Dice, bootstrap CI, summary writing.
 - `src/gemini_segmentation/fairness.py`: ITA grouping and statistical analysis.
 - `src/gemini_segmentation/prompts.py`: prompt families and provider-specific shaping.
+- `src/gemini_segmentation/batch.py`: config-driven matrix orchestration and job-status logging.
 - `src/gemini_segmentation/paper/`: table/figure generation utilities.
-- `configs/`: prompt presets and paper artifact registries.
+- `configs/`: prompt presets, paper artifact registries, and benchmark matrices.
 - `tests/`: primary regression safety net.
 
 ## Non-Negotiable Invariants
@@ -57,6 +61,7 @@ Repository-level instructions for coding agents working in this project.
 - Any method-level change: add an entry to `docs/METHODS_CHANGELOG.md` in the same change.
 - Paper artifact changes: keep CSV/HTML/DOCX and PNG/PDF outputs stable unless intentionally revised, then run `pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py`.
 - Fairness changes: preserve file names under `fairness/` and run relevant fairness plus CLI tests.
+- Batch orchestration changes: update `docs/BATCH_ORCHESTRATION.md` and run `pytest -q tests/test_batch.py tests/test_cli.py`.
 
 ## Notebook Policy
 - Notebooks are legacy workflow records and often contain large saved outputs.

@@ -20,6 +20,9 @@ Thumbs.db
 segmented-images/
 data/
 data_readability/
+outputs/
+results/
+artifacts/
 hyper-kvasir-segmentation.zip
 *.png
 *.jpg
@@ -31,3 +34,4 @@ runs/
 # secrets
 .envrc
 .env.*
+configs/benchmarks/*.local.yaml

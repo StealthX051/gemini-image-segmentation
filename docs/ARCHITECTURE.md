@@ -8,6 +8,7 @@
 5. Responses are parsed into normalized masks and persisted (`src/gemini_segmentation/io.py`).
 6. IoU/Dice/summary metrics are updated incrementally (`src/gemini_segmentation/metrics.py`) with single-channel normalization for RGB/RGBA mask inputs.
 7. Optional fairness analysis consumes saved masks/metrics (`src/gemini_segmentation/fairness.py`).
+8. Optional batch orchestration composes multiple `segment`/`fairness` CLI calls from config matrices (`src/gemini_segmentation/batch.py`).
 
 ## Manuscript Alignment
 - See `docs/MANUSCRIPT_ALIGNMENT.md` for method-level constraints that tie implementation to manuscript and post hoc extensions.
@@ -23,9 +24,11 @@
 - Output contract: run artifacts live under `results/<dataset>/<model>/<prompt_key>/<run_id>/`.
 - Retry contract: per-image retries are configured by `max_retries` and apply to timeout/parse-failure outcomes.
 - Resume behavior depends on `predictions.jsonl` and per-image artifact regeneration.
+- Batch contract: orchestration outputs live under `results/batches/<run_id>/` with `resolved_config.json`, `job_status.jsonl`, `summary.json`, and per-job logs.
 
 ## Module Ownership
 - `cli.py`: argument parsing, run orchestration, checkpointing loop.
+- `batch.py`: config-driven multi-job orchestration, strict preflight, deterministic command assembly, status/summary artifacts.
 - `models.py`: provider clients and provider-specific output adaptation.
 - `io.py`: JSON parsing, base64 encoding/decoding, overlay rendering, JSONL persistence.
 - `metrics.py`: IoU/Dice, bootstrap CI, rolling summaries.
@@ -37,6 +40,7 @@
 - New prompt family: extend `PromptFamily` and dictionaries in `prompts.py`, add YAML presets in `configs/prompts.yaml`.
 - New dataset layout: extend dataset discovery/manifest behavior in `data.py` while preserving `images/` + `masks/` assumptions where possible.
 - New analysis metric: add metric computation in `metrics.py`, propagate to CSV/summary and tests.
+- New benchmark study matrix: add/update YAML under `configs/benchmarks/` and validate orchestration behavior with `tests/test_batch.py`.
 
 ## Operational Notes
 - Large datasets are intentionally externalized; repository code should not assume local copies exist.

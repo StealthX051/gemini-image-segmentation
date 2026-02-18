@@ -6,9 +6,11 @@ Last updated: 2026-02-18.
 - Prompt-ablation runs (`label_v1`, `desc_v1`, `desc_neg_v1`) across Gemini models.
 - Robotics ER benchmarking via `gemini-robotics-er-1.5-preview`.
 - Cost control through local request cache plus Gemini explicit cache where supported.
+- Current fairness workflow preference: run fairness analyses on dermoscopy-focused studies unless explicitly requested for other datasets.
 
 ## Runtime Facts
 - CLI entrypoint: `python -m gemini_segmentation.cli segment ...`
+- Batch entrypoint: `python -m gemini_segmentation.batch --config ...`
 - Prompt families are selected by repeating `--prompt-family` (no `--prompt-families` flag).
 - Default retry policy: `--max-retries 5` (five retries after the first attempt) for timeout/parse-failure/exception retries.
 - Local request cache is enabled by default; failed parses/timeouts are not persisted.
@@ -41,15 +43,42 @@ python -m gemini_segmentation.cli segment polyp segmented-images \
   --no-gemini-explicit-cache
 ```
 
+## Recommended Batch Pattern
+Use config-driven orchestration for unattended benchmark runs:
+
+```bash
+python -m gemini_segmentation.batch \
+  --config configs/benchmarks/ablation_robotics_canonical.yaml \
+  --run-id ablation_robotics_<timestamp>
+```
+
+- Add `--overrides configs/benchmarks/ablation_robotics_canonical.local.yaml` for machine-specific dataset roots/manifests.
+- Add `--only-model` and `--only-dataset` to run subsets.
+- Add `--auto-fairness` to run fairness immediately after successful segmentation jobs.
+- For non-interrupting planning/verification, use `--dry-run`.
+
+## PowerShell Convenience Runner
+For a full polyp 3x3 run (three models × three prompt families) with `workers=10` and live monitoring:
+
+```powershell
+.\scripts\run_polyp_full_3x3_w10.ps1
+```
+
+- Reuse `-RunId <existing_run_id>` to resume interrupted runs.
+- Use `-NoLiveMonitor` to suppress heartbeat/log-tail monitor output.
+
 ## Key Files For New Agents
 - `README.md`
 - `docs/ARCHITECTURE.md`
+- `docs/BATCH_ORCHESTRATION.md`
 - `docs/MANUSCRIPT_ALIGNMENT.md`
 - `docs/GEMINI_CACHING.md`
 - `docs/METHODS_CHANGELOG.md`
 - `src/gemini_segmentation/cli.py`
+- `src/gemini_segmentation/batch.py`
 - `src/gemini_segmentation/models.py`
 - `src/gemini_segmentation/cache.py`
 - `src/gemini_segmentation/metrics.py`
 - `tests/test_cli.py`
+- `tests/test_batch.py`
 - `tests/test_metrics.py`

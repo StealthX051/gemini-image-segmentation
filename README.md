@@ -15,6 +15,7 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 - `docs/MANUSCRIPT_ALIGNMENT.md`: manuscript + post hoc method alignment constraints.
 - `docs/AGENT_HANDOFF.md`: current operational handoff for new agent sessions.
 - `docs/GEMINI_CACHING.md`: Gemini/API caching support notes and benchmark run guidance.
+- `docs/BATCH_ORCHESTRATION.md`: unattended matrix-runner workflow and config schema.
 - `docs/METHODS_CHANGELOG.md`: ordered method-version and change-ID history.
 - `docs/NOTEBOOKS.md`: legacy notebook map and migration guidance.
 - `llms.txt`: compact LLM index of canonical files and commands.
@@ -33,6 +34,7 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 - `01_*` … `16_*` notebooks: per-dataset pairs (`environment_and_data_prep` + `genai_segmentation_evaluation`).
 - `ita_fitzpatrick_analysis.ipynb`: fairness/skin-tone analysis built on notebook outputs.
 - `configs/`: prompt presets (`prompts.yaml`) used by the CLI.
+- `configs/benchmarks/`: benchmark-matrix configs for unattended orchestration.
 - `src/gemini_segmentation/`: modular Python package powering the CLI (data discovery, IO, Gemini client, metrics, fairness, prompts, and types).
 - `results/`: created by the CLI to hold centralized outputs (safe to delete/regenerate).
 
@@ -85,6 +87,65 @@ python -c "import docx; print(docx.__file__)"
   - Preset caveat: some presets in `configs/prompts.yaml` include a `model` field and can override CLI `--model-name`; avoid those presets when running strict cross-model comparisons.
   - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version your-org/seg-model:123abc --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
 - `fairness`: Compute ITA/Fitzpatrick statistics from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--manifest] [--sample-size] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`. Defaults fall back to the stored `run_config.json` so fairness matches the originating segmentation subset and bootstrap settings.
+
+### Benchmark matrix automation
+Use the batch orchestrator to run full prompt-ablation matrices unattended across models and datasets:
+
+- Entrypoint: `python -m gemini_segmentation.batch --config configs/benchmarks/ablation_robotics_canonical.yaml [flags]`
+- Thin launcher (auto-loads `.env` into the shell process): `./scripts/launch_batch.sh --config configs/benchmarks/ablation_robotics_canonical.yaml`
+- Optional local overrides: `--overrides configs/benchmarks/ablation_robotics_canonical.local.yaml`
+- Stable run IDs: pass `--run-id`, otherwise default is `<study_id>_<YYYYMMDD-HHMMSS>`
+- Filters: repeat `--only-dataset` and/or `--only-model` to run a subset.
+- Optional fairness phase: add `--auto-fairness`
+- Planning mode: `--dry-run` validates config/preflight and writes planned jobs without API calls.
+- Windows convenience runner (polyp full dataset, 3x3, workers=10, live monitor): `.\scripts\run_polyp_full_3x3_w10.ps1`
+
+Quick examples:
+
+```bash
+# Full matrix
+python -m gemini_segmentation.batch \
+  --config configs/benchmarks/ablation_robotics_canonical.yaml
+
+# Only robotics ER on two datasets with fixed run-id
+python -m gemini_segmentation.batch \
+  --config configs/benchmarks/ablation_robotics_canonical.yaml \
+  --only-model gemini-robotics-er-1.5-preview \
+  --only-dataset polyp \
+  --only-dataset derm_lesion \
+  --run-id ablation_robotics_subset_20260218-1530
+
+# Same matrix with fairness post-step enabled
+python -m gemini_segmentation.batch \
+  --config configs/benchmarks/ablation_robotics_canonical.yaml \
+  --auto-fairness
+```
+
+PowerShell convenience run (full polyp 3x3 with live monitor):
+
+```powershell
+.\scripts\run_polyp_full_3x3_w10.ps1
+```
+
+Resume an interrupted run safely with the same run ID:
+
+```powershell
+.\scripts\run_polyp_full_3x3_w10.ps1 -RunId <existing_run_id>
+```
+
+Batch outputs are written under:
+
+```
+results/batches/<run_id>/
+  resolved_config.json
+  job_status.jsonl
+  summary.json
+  logs/*.log
+```
+
+The orchestrator executes jobs sequentially by default, continues after failures, and returns non-zero if any segment/fairness job fails.
+
+Generated runtime artifacts (`results/`, `outputs/`, `artifacts/`) are ignored by default in `.gitignore` to keep repository status clean during long benchmark runs.
 
 ### Outputs (per run)
 ```
@@ -148,6 +209,7 @@ results/<dataset>/<model>/<run_id>/
 ## Key files to read
 - **Notebook starters**: the first cell of any `NN_*_environment_and_data_prep.ipynb` for dataset discovery and segmentation helpers.
 - **CLI entrypoint**: `src/gemini_segmentation/cli.py` (commands, arguments, workflow wiring).
+- **Batch entrypoint**: `src/gemini_segmentation/batch.py` (matrix orchestration, strict preflight, status logs).
 - **Gemini client + parsing**: `src/gemini_segmentation/models.py` and `src/gemini_segmentation/io.py` (request construction, response parsing, mask decoding, legacy exports).
 - **Metrics and resume logic**: `src/gemini_segmentation/metrics.py` and `src/gemini_segmentation/io.py` (IoU/Dice, bootstrap, checkpointing, JSONL handling).
 - **Fairness**: `src/gemini_segmentation/fairness.py` (ITA computation, statistical tests, output schemas).
