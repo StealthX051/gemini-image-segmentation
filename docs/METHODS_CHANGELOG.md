@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v1` (provider expansion + prompt ablation families).
+- `posthoc_v2` (provider expansion + prompt ablation families + caching/retry robustness hardening).
 
 ## Entries
 
@@ -27,6 +27,21 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: prompt ablation families formalized as `label_v1`, `desc_v1`, and `desc_neg_v1` with fixed semantics and provider-aware prompt materialization.
 - Impact: supports controlled ablation over language specificity while preserving output schema expectations for Gemini and compatible behavior for other providers.
 - Code anchors: `src/gemini_segmentation/prompts.py`, `configs/prompts.yaml`, `tests/test_prompts.py`, `tests/test_cli.py`.
+
+### MTH-POSTHOC-003
+- Date: 2026-02-18.
+- Status: active.
+- Summary: added dual-layer caching controls for high-volume benchmark runs: (1) local deterministic request cache across providers; (2) Gemini explicit context cache for supported Gemini models.
+- Impact: reduces repeated API spend during reruns/resume workflows while preserving ablation isolation via cache keys that include provider/model/prompt/image identity.
+- Provider notes: Gemini docs list caching support for `gemini-2.5-flash` and `gemini-2.5-flash-lite`; robotics docs list `gemini-robotics-er-1.5-preview` caching as unsupported, so the implementation auto-falls back to no explicit Gemini cache for robotics ER.
+- Code anchors: `src/gemini_segmentation/cache.py`, `src/gemini_segmentation/cli.py`, `src/gemini_segmentation/models.py`, `src/gemini_segmentation/types.py`, `src/gemini_segmentation/config.py`.
+
+### MTH-POSTHOC-004
+- Date: 2026-02-18.
+- Status: active.
+- Summary: added bounded retry handling (`max_retries`, default 5) for timeout/parse-failure outcomes and normalized multi-channel masks to single-channel before IoU/Dice computation.
+- Impact: improves run robustness for malformed/partial model outputs and prevents metric crashes on RGB/RGBA mask files.
+- Code anchors: `src/gemini_segmentation/cli.py`, `src/gemini_segmentation/metrics.py`, `src/gemini_segmentation/types.py`, `src/gemini_segmentation/config.py`, `tests/test_cli.py`, `tests/test_metrics.py`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

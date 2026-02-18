@@ -21,6 +21,7 @@
 ## Local Validation
 - Full test run: `pytest -q`.
 - Prompt/CLI-focused checks: `pytest -q tests/test_prompts.py tests/test_cli.py`.
+- Metrics-focused checks: `pytest -q tests/test_metrics.py`.
 - Provider adapter checks: `pytest -q tests/test_replicate_segmenter.py`.
 - Paper/fairness artifact checks: `pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py`.
 

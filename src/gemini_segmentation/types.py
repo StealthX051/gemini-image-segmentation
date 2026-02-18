@@ -58,6 +58,7 @@ class RunConfig:
     temperature: float = 0.5
     safety_settings: Optional[dict] = None
     timeout_s: float = 60.0
+    max_retries: int = 5
     workers: int = 1
     sample_size: Optional[int] = None
     manifest_path: Optional[Path] = None
@@ -72,6 +73,10 @@ class RunConfig:
     replicate_targets: Optional[Tuple[str, ...]] = None
     replicate_instructions: Optional[Dict[str, str]] = None
     replicate_cache_dir: Optional[Path] = None
+    local_cache_enabled: bool = True
+    local_cache_dir: Optional[Path] = None
+    gemini_explicit_cache: bool = True
+    gemini_cache_ttl_s: Optional[int] = None
 
 
 @dataclass

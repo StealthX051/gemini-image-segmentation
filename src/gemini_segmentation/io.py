@@ -59,33 +59,10 @@ def _wrap_base64_mask(mask_str: str) -> List[dict]:
     ]
 
 
-def parse_segmentation_masks(
-    response: object, *, img_height: int, img_width: int
-) -> Tuple[List[SegmentationMask], bool, List[dict]]:
-    """Parse model output into full-image masks with bounding boxes and raw entries."""
-
-    raw_text, has_text = _extract_response_text(response)
-    cleaned_json = parse_json(raw_text) if has_text else ""
-    raw_items: List[dict] | str = []
-    parse_success = True
-    if cleaned_json:
-        try:
-            raw_items = json.loads(cleaned_json)
-        except json.JSONDecodeError:
-            logging.exception("Failed to decode JSON response; attempting base64 fallback")
-            parse_success = False
-            if cleaned_json.startswith("data:image") or cleaned_json.strip():
-                raw_items = _wrap_base64_mask(cleaned_json)
-    elif has_text and raw_text.strip():
-        parse_success = False
-        raw_items = _wrap_base64_mask(raw_text)
-    else:
-        logging.warning("Empty segmentation response")
-        return [], False, []
-
-    # Normalize single-object dicts
-    if isinstance(raw_items, dict):
-        raw_items = [raw_items]
+def segmentation_masks_from_items(
+    raw_items: Iterable[dict], *, img_height: int, img_width: int
+) -> List[SegmentationMask]:
+    """Convert schema-normalized mask items into full-image segmentation masks."""
 
     masks: List[SegmentationMask] = []
     for item in raw_items:
@@ -120,11 +97,45 @@ def parse_segmentation_masks(
         except (KeyError, IndexError, TypeError, base64.binascii.Error, UnidentifiedImageError):
             logging.exception("Skipping malformed mask entry: %s", item)
             continue
+    return masks
+
+
+def parse_segmentation_masks(
+    response: object, *, img_height: int, img_width: int
+) -> Tuple[List[SegmentationMask], bool, List[dict]]:
+    """Parse model output into full-image masks with bounding boxes and raw entries."""
+
+    raw_text, has_text = _extract_response_text(response)
+    cleaned_json = parse_json(raw_text) if has_text else ""
+    raw_items: List[dict] | str = []
+    parse_success = True
+    if cleaned_json:
+        try:
+            raw_items = json.loads(cleaned_json)
+        except json.JSONDecodeError:
+            logging.exception("Failed to decode JSON response; attempting base64 fallback")
+            parse_success = False
+            if cleaned_json.startswith("data:image") or cleaned_json.strip():
+                raw_items = _wrap_base64_mask(cleaned_json)
+    elif has_text and raw_text.strip():
+        parse_success = False
+        raw_items = _wrap_base64_mask(raw_text)
+    else:
+        logging.warning("Empty segmentation response")
+        return [], False, []
+
+    # Normalize single-object dicts
+    if isinstance(raw_items, dict):
+        raw_items = [raw_items]
+
     normalized_items: List[dict] = []
     if isinstance(raw_items, list):
         for item in raw_items:
             if isinstance(item, dict):
                 normalized_items.append(item)
+    masks = segmentation_masks_from_items(
+        normalized_items, img_height=img_height, img_width=img_width
+    )
     return masks, parse_success, normalized_items
 
 
@@ -136,7 +147,7 @@ def overlay_mask_on_img(img: Image.Image, mask: np.ndarray, color: str, alpha: f
     colored_mask_layer_np = np.zeros((img.height, img.width, 4), dtype=np.uint8)
     mask_binary = mask > 127
     colored_mask_layer_np[mask_binary] = overlay_color_rgba
-    colored_mask_layer_pil = Image.fromarray(colored_mask_layer_np, "RGBA")
+    colored_mask_layer_pil = Image.fromarray(colored_mask_layer_np)
     return Image.alpha_composite(img_rgba, colored_mask_layer_pil)
 
 

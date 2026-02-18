@@ -3,21 +3,25 @@
 ## Runtime Flow
 1. `segment` command resolves dataset paths and manifest (`src/gemini_segmentation/data.py`).
 2. Prompt payload is built from prompt family/preset/provider (`src/gemini_segmentation/prompts.py`, `src/gemini_segmentation/config.py`).
-3. Provider adapter performs inference (`src/gemini_segmentation/models.py`).
-4. Responses are parsed into normalized masks and persisted (`src/gemini_segmentation/io.py`).
-5. IoU/Dice/summary metrics are updated incrementally (`src/gemini_segmentation/metrics.py`).
-6. Optional fairness analysis consumes saved masks/metrics (`src/gemini_segmentation/fairness.py`).
+3. Optional local request cache lookup is performed before provider calls (`src/gemini_segmentation/cache.py`, wired in `src/gemini_segmentation/cli.py`).
+4. Provider adapter performs inference (`src/gemini_segmentation/models.py`) with retry policy applied in CLI orchestration (`max_retries`).
+5. Responses are parsed into normalized masks and persisted (`src/gemini_segmentation/io.py`).
+6. IoU/Dice/summary metrics are updated incrementally (`src/gemini_segmentation/metrics.py`) with single-channel normalization for RGB/RGBA mask inputs.
+7. Optional fairness analysis consumes saved masks/metrics (`src/gemini_segmentation/fairness.py`).
 
 ## Manuscript Alignment
 - See `docs/MANUSCRIPT_ALIGNMENT.md` for method-level constraints that tie implementation to manuscript and post hoc extensions.
+- See `docs/GEMINI_CACHING.md` for model-specific caching support and operational defaults.
 - Prompt ablation is represented by `PromptFamily`: `label_v1`, `desc_v1`, `desc_neg_v1`.
 - Provider expansion includes Gemini model switching, Moondream adapter support, and Replicate/Sa2VA adapter support.
+- Cost controls now include local request caching (all providers) plus Gemini explicit context caching when supported by the selected model.
 - Run reproducibility relies on `run_config.json` fields such as `provider`, `prompt_family`, `prompt_hash`, provider-specific targets/instructions, and model identifier.
 
 ## Key Design Contracts
 - Segmenter contract: `segment(image_obj) -> (masks, latency_s, parse_success, timed_out, raw_items)`.
 - Mask contract: `SegmentationMask` stores full-image binary mask plus pixel-space bounding box.
 - Output contract: run artifacts live under `results/<dataset>/<model>/<prompt_key>/<run_id>/`.
+- Retry contract: per-image retries are configured by `max_retries` and apply to timeout/parse-failure outcomes.
 - Resume behavior depends on `predictions.jsonl` and per-image artifact regeneration.
 
 ## Module Ownership

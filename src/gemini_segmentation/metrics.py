@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -24,6 +24,19 @@ def calculate_dice(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     if denominator == 0:
         return 1.0
     return float(2.0 * np.sum(intersection) / denominator)
+
+
+def _as_single_channel(mask: np.ndarray, *, label: str) -> np.ndarray:
+    """Normalize masks to HxW for metric computation."""
+
+    arr = np.asarray(mask)
+    arr = np.squeeze(arr)
+    if arr.ndim == 2:
+        return arr
+    if arr.ndim == 3:
+        logging.info("Converting %s mask from shape %s to single-channel", label, arr.shape)
+        return np.max(arr, axis=-1)
+    raise ValueError(f"Unsupported {label} mask shape: {arr.shape}")
 
 
 def calculate_bootstrap_ci(
@@ -167,8 +180,18 @@ def compute_metrics_for_masks(
         logging.warning("Ground truth mask empty; marking as failure")
         return 0.0, 0.0, False
 
-    combined_pred = combine_masks(predictions) if predictions else np.zeros_like(ground_truth)
-    y_true = ground_truth > 127
+    ground_truth_2d = _as_single_channel(ground_truth, label="ground truth")
+    pred_masks_2d = [_as_single_channel(mask, label="prediction") for mask in predictions]
+    combined_pred = combine_masks(pred_masks_2d) if pred_masks_2d else np.zeros_like(ground_truth_2d)
+    if combined_pred.shape != ground_truth_2d.shape:
+        logging.warning(
+            "Prediction/ground-truth shape mismatch (%s vs %s); marking as failure",
+            combined_pred.shape,
+            ground_truth_2d.shape,
+        )
+        return 0.0, 0.0, False
+
+    y_true = ground_truth_2d > 127
     y_pred = combined_pred > 127
     iou = calculate_iou(y_true, y_pred)
     dice = calculate_dice(y_true, y_pred)

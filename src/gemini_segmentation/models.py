@@ -48,8 +48,22 @@ def _run_with_timeout(
     return result_holder[0] if result_holder else None, False
 
 
+def _usage_metadata_value(usage_metadata: Any, *keys: str) -> Any:
+    for key in keys:
+        if isinstance(usage_metadata, dict) and key in usage_metadata:
+            return usage_metadata[key]
+        value = getattr(usage_metadata, key, None)
+        if value is not None:
+            return value
+    return None
+
+
 class GeminiSegmenter:
     """Thin wrapper around the google-genai client used in the notebooks."""
+
+    _prompt_cache_lock = threading.Lock()
+    _prompt_cache_registry: Dict[str, str] = {}
+    _prompt_cache_disabled: set[str] = set()
 
     def __init__(
         self,
@@ -60,6 +74,8 @@ class GeminiSegmenter:
         thinking_budget: int = 0,
         timeout_s: float = 60.0,
         safety_settings: Optional[dict] = None,
+        explicit_cache: bool = True,
+        cache_ttl_s: int = 3600,
     ) -> None:
         self.model_name = model_name
         self.prompt = prompt
@@ -67,8 +83,67 @@ class GeminiSegmenter:
         self.thinking_budget = thinking_budget
         self.timeout_s = timeout_s
         self.safety_settings = safety_settings or {}
+        self.explicit_cache = explicit_cache
+        self.cache_ttl_s = cache_ttl_s
         self.client = genai.Client()
         logging.info("GenAI backend: %s", "Vertex" if self.client.vertexai else "Dev API")
+        self.cached_content_name: Optional[str] = self._get_or_create_prompt_cache()
+
+    def _cache_key(self) -> str:
+        payload = f"{self.model_name}|{self.prompt}|{self.cache_ttl_s}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _cache_model_candidates(self) -> List[str]:
+        if self.model_name.startswith("models/"):
+            return [self.model_name]
+        return [self.model_name, f"models/{self.model_name}"]
+
+    def _get_or_create_prompt_cache(self) -> Optional[str]:
+        if not self.explicit_cache:
+            return None
+        if "robotics-er" in self.model_name:
+            logging.info("Explicit Gemini context caching is not supported for %s; continuing without it.", self.model_name)
+            return None
+
+        cache_key = self._cache_key()
+        with GeminiSegmenter._prompt_cache_lock:
+            cached_name = GeminiSegmenter._prompt_cache_registry.get(cache_key)
+            if cached_name:
+                return cached_name
+            if cache_key in GeminiSegmenter._prompt_cache_disabled:
+                return None
+
+        ttl = max(300, int(self.cache_ttl_s))
+        config = {
+            "display_name": f"seg-prompt-{cache_key[:8]}",
+            "system_instruction": self.prompt,
+            "ttl": f"{ttl}s",
+        }
+        last_error: BaseException | None = None
+        for cache_model_name in self._cache_model_candidates():
+            try:
+                cached_content = self.client.caches.create(model=cache_model_name, config=config)
+                cache_name = getattr(cached_content, "name", None)
+                if cache_name:
+                    with GeminiSegmenter._prompt_cache_lock:
+                        GeminiSegmenter._prompt_cache_registry[cache_key] = cache_name
+                    logging.info(
+                        "Enabled explicit Gemini context cache for %s (ttl=%ss)", cache_model_name, ttl
+                    )
+                    return cache_name
+            except Exception as exc:  # pragma: no cover - external API behavior
+                last_error = exc
+                continue
+
+        if last_error:
+            with GeminiSegmenter._prompt_cache_lock:
+                GeminiSegmenter._prompt_cache_disabled.add(cache_key)
+            logging.warning(
+                "Unable to create explicit Gemini context cache for %s; proceeding without it: %s",
+                self.model_name,
+                last_error,
+            )
+        return None
 
     def _call_model(
         self, image_obj: Image.Image
@@ -91,14 +166,22 @@ class GeminiSegmenter:
             img_for_api.save(img_byte_arr, format="JPEG")
             img_bytes = img_byte_arr.getvalue()
 
-        gen_config = GenerateContentConfig(
-            thinking_config=ThinkingConfig(thinking_budget=self.thinking_budget),
-            temperature=self.temperature,
-            safety_settings=[SafetySetting(**s) for s in self.safety_settings.values()] if self.safety_settings else None,
-        )
+        config_kwargs: Dict[str, Any] = {
+            "thinking_config": ThinkingConfig(thinking_budget=self.thinking_budget),
+            "temperature": self.temperature,
+            "safety_settings": [SafetySetting(**s) for s in self.safety_settings.values()]
+            if self.safety_settings
+            else None,
+        }
+        if self.cached_content_name:
+            config_kwargs["cached_content"] = self.cached_content_name
+        gen_config = GenerateContentConfig(**config_kwargs)
 
         image_part = Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
-        text_part = Part(text=self.prompt)
+        if self.cached_content_name:
+            text_part = Part(text="Segment this image following the cached instructions. Return JSON.")
+        else:
+            text_part = Part(text=self.prompt)
 
         start_time = datetime.now()
         response = self.client.models.generate_content(
@@ -107,6 +190,31 @@ class GeminiSegmenter:
             config=gen_config,
         )
         latency = (datetime.now() - start_time).total_seconds()
+
+        usage_metadata = getattr(response, "usage_metadata", None)
+        cached_tokens = _usage_metadata_value(
+            usage_metadata,
+            "cached_content_token_count",
+            "cachedContentTokenCount",
+        )
+        if cached_tokens:
+            prompt_tokens = _usage_metadata_value(
+                usage_metadata,
+                "prompt_token_count",
+                "promptTokenCount",
+            )
+            total_tokens = _usage_metadata_value(
+                usage_metadata,
+                "total_token_count",
+                "totalTokenCount",
+            )
+            logging.info(
+                "Gemini cache tokens used (model=%s): prompt=%s cached=%s total=%s",
+                self.model_name,
+                prompt_tokens,
+                cached_tokens,
+                total_tokens,
+            )
 
         masks, parse_success, raw_items = parse_segmentation_masks(
             response, img_height=original_height, img_width=original_width

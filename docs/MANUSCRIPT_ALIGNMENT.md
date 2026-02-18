@@ -30,9 +30,21 @@ This document keeps implementation changes aligned with:
 - Replicate/Sa2VA: receives natural-language instruction(s), optionally per target.
 - Any change to provider shaping should be treated as a methods change and documented here.
 
+## Caching Contract
+- Local request caching may be used to avoid duplicate inference calls across reruns, but cache keys must include model/provider/prompt/image identity so ablation conditions remain isolated.
+- Local request cache should persist parse-success responses only; malformed/timeout responses should be retried rather than frozen into cache.
+- Gemini explicit context caching may be enabled for supported Gemini models to reduce prompt-token costs.
+- When Gemini caching is enabled, runs should monitor `usage_metadata.cached_content_token_count` to confirm cache-token reuse in practice.
+- For `gemini-robotics-er-1.5-preview`, Gemini documentation currently lists context caching as unsupported; implementations must gracefully fall back without explicit cache.
+
+## Reliability Contract
+- Segmentation runs should use bounded retries for timeout/parse-failure outcomes to reduce one-off malformed-output artifacts.
+- Default CLI behavior uses `max_retries=5` unless intentionally overridden for sensitivity analyses.
+- Mask metrics should normalize multi-channel mask arrays (e.g., RGB PNG labels) to single-channel before IoU/Dice computation.
+
 ## Reproducibility And Reporting
 - Keep `run_config.json` comprehensive for post hoc analyses and manuscript traceability.
-- Required traceability fields include provider, model identifier, prompt family, prompt hash, prompt text or provider-specific target/instruction payload, and bootstrap settings.
+- Required traceability fields include provider, model identifier, prompt family, prompt hash, prompt text or provider-specific target/instruction payload, retry policy (`max_retries`), and bootstrap settings.
 - When method semantics change, update `src/gemini_segmentation/prompts.py`.
 - When method semantics change, update `configs/prompts.yaml`.
 - When method semantics change, update relevant tests in `tests/test_prompts.py` and `tests/test_cli.py`.

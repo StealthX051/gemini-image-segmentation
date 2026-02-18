@@ -13,6 +13,8 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 - `CONTRIBUTING.md`: contributor workflow and validation commands.
 - `docs/ARCHITECTURE.md`: module boundaries, contracts, and extension points.
 - `docs/MANUSCRIPT_ALIGNMENT.md`: manuscript + post hoc method alignment constraints.
+- `docs/AGENT_HANDOFF.md`: current operational handoff for new agent sessions.
+- `docs/GEMINI_CACHING.md`: Gemini/API caching support notes and benchmark run guidance.
 - `docs/METHODS_CHANGELOG.md`: ordered method-version and change-ID history.
 - `docs/NOTEBOOKS.md`: legacy notebook map and migration guidance.
 - `llms.txt`: compact LLM index of canonical files and commands.
@@ -23,6 +25,8 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
   - `GOOGLE_API_KEY`
   - `MOONDREAM_API_KEY` (or pass `--moondream-api-key`)
   - `REPLICATE_API_TOKEN`
+- **Shell export note**: the CLI does not auto-load `.env`; export env vars in the active shell before running commands.
+  - PowerShell: `Get-Content .env | ForEach-Object { if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }; $n,$v = $_ -split '=',2; Set-Item -Path "Env:$n" -Value $v.Trim().Trim('"').Trim("'") }`
 - **GPU/CPU**: Workloads are CPU-bound by default; the code auto-resizes images to ≤1024 px as in the paper.
 
 ## Repository layout
@@ -53,6 +57,7 @@ conda activate gemini-segmentation
 python -m pip install -e .
 ```
 Ensure `.env` contains `GOOGLE_API_KEY`.
+For CLI runs in PowerShell, export `.env` into process env vars before invoking the CLI.
 
 For quick test runs without Conda, install the minimal test dependencies with:
 
@@ -71,9 +76,13 @@ python -c "import docx; print(docx.__file__)"
 ### Commands
 - `segment`: Run Gemini or Moondream on a dataset without changing source files.
   - Required: `segment <dataset_name> <dataset_root>` (must contain `images/` and `masks/`, plus any existing manifest files).
-  - Key options: `--manifest` to target curated lists (e.g., `pilot50_*`) without rewriting `master_imagelist_*`; `--prompt`/`--prompt-file` or `--prompt-preset configs/prompts.yaml --preset-name <name>`; `--model-name`, `--temperature`, `--thinking-budget`, `--timeout`, `--workers`, `--rate-limit`, `--sample-size`, `--success-threshold`, `--bootstrap-method` (`bca` or `percentile`) and `--bootstrap-resamples` (default 5000) for summary stats; `--legacy-predictions` (emit notebook-style JSON near the inputs for back-compat); `--dry-run` (list pending images without calling the API).
+  - Key options: `--manifest` to target curated lists (e.g., `pilot50_*`) without rewriting `master_imagelist_*`; `--prompt`/`--prompt-file` or `--prompt-preset configs/prompts.yaml --preset-name <name>`; `--model-name`, `--temperature`, `--thinking-budget`, `--timeout`, `--max-retries`, `--workers`, `--rate-limit`, `--sample-size`, `--success-threshold`, `--bootstrap-method` (`bca` or `percentile`) and `--bootstrap-resamples` (default 5000) for summary stats; `--legacy-predictions` (emit notebook-style JSON near the inputs for back-compat); `--dry-run` (list pending images without calling the API).
+  - Retry behavior: `--max-retries` defaults to `5` and retries timeout/parse-failure call outcomes.
+  - Local request cache (all providers): `--local-cache/--no-local-cache` and `--local-cache-dir` to reuse prior request outputs across runs and reduce repeat API calls.
+  - Gemini explicit context cache: `--gemini-explicit-cache/--no-gemini-explicit-cache` and `--gemini-cache-ttl` (seconds). Explicit cache is attempted automatically for Gemini models except robotics ER, where Gemini docs list caching as unsupported.
   - Provider selection: `--provider gemini` (default), `--provider moondream`, or `--provider replicate`. For Moondream, pass `--model-name moondream-3` (auto-applied if you keep the default) and optionally `--moondream-target` multiple times to request one API call per object label (otherwise the prompt text is used as the target). Use `--moondream-endpoint` for a local Moondream Station deployment or rely on `MOONDREAM_API_KEY`/`--moondream-api-key` for cloud calls.
   - Model selection: pass the Gemini model ID via `--model-name`. The default is `gemini-2.5-flash`, and you can explicitly target `gemini-2.5-flash-lite` or `gemini-robotics-er-1.5-preview` the same way.
+  - Preset caveat: some presets in `configs/prompts.yaml` include a `model` field and can override CLI `--model-name`; avoid those presets when running strict cross-model comparisons.
   - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version your-org/seg-model:123abc --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
 - `fairness`: Compute ITA/Fitzpatrick statistics from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--manifest] [--sample-size] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`. Defaults fall back to the stored `run_config.json` so fairness matches the originating segmentation subset and bootstrap settings.
 
@@ -109,11 +118,11 @@ results/<dataset>/<model>/<run_id>/
   - `lits_liver` / `lits_liver_mass` → LiTS liver vs. liver-mass targets
   - `laparoscopy_uterus_tools` → uterus + surgical tools in laparoscopy frames
   - `histopathology` → tissue regions of diagnostic interest (tumor, stroma, necrosis, etc.)
-  - Structured prompt families (`label_v1`, `desc_v1`, `desc_neg_v1`) can be selected explicitly via presets (e.g., `polyp_desc_neg_v1`) or by passing `--prompt-family` alongside `--dataset_name`/`--prompt-preset`; `desc_neg_v1` appends negation-only guardrails.
+  - Structured prompt families (`label_v1`, `desc_v1`, `desc_neg_v1`) can be selected explicitly via presets (e.g., `polyp_desc_neg_v1`) or by repeating `--prompt-family`; `desc_neg_v1` appends negation-only guardrails.
 - Override inline with `--prompt` or `--prompt-file`; the chosen text and model parameters are captured in `run_config.json` for reproducibility.
 
 #### Prompt families and provider-aware shaping
-- **Ablation families:** All tasks support three prompt families held constant across providers. `label_v1` uses only the class name; `desc_v1` adds modality context + short definition + stable attributes; `desc_neg_v1` equals `desc_v1` plus an exclusions block (the negation block is appended byte-for-byte so the only delta is the exclusions text). Families can be enumerated via `--prompt-family` or comma-separated with `--prompt-families` to evaluate all three per image.
+- **Ablation families:** All tasks support three prompt families held constant across providers. `label_v1` uses only the class name; `desc_v1` adds modality context + short definition + stable attributes; `desc_neg_v1` equals `desc_v1` plus an exclusions block (the negation block is appended byte-for-byte so the only delta is the exclusions text). Enumerate families by repeating `--prompt-family`.
 - **Provider-specific construction:**
   - **Gemini** receives the full JSON-schema prompt (keys `box_2d`, `mask`, `label`) built via the selected family.
   - **Moondream** ignores the JSON schema; it receives the target label(s) as the `object` string(s). Use `--moondream-target` overrides for multi-target tasks; otherwise the preset label(s) are sent.

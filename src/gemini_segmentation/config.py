@@ -46,6 +46,7 @@ def build_run_config(
     temperature: float = 0.5,
     safety_settings: Optional[Dict[str, Any]] = None,
     timeout_s: float = 60.0,
+    max_retries: int = 5,
     workers: int = 1,
     sample_size: Optional[int] = None,
     manifest_path: Optional[Path] = None,
@@ -60,6 +61,10 @@ def build_run_config(
     replicate_targets: Optional[Tuple[str, ...]] = None,
     replicate_instructions: Optional[Dict[str, str]] = None,
     replicate_cache_dir: Optional[Path] = None,
+    local_cache_enabled: bool = True,
+    local_cache_dir: Optional[Path] = None,
+    gemini_explicit_cache: bool = True,
+    gemini_cache_ttl_s: Optional[int] = None,
 ) -> RunConfig:
     return RunConfig(
         dataset_name=dataset_name,
@@ -73,6 +78,7 @@ def build_run_config(
         temperature=temperature,
         safety_settings=safety_settings,
         timeout_s=timeout_s,
+        max_retries=max_retries,
         workers=workers,
         sample_size=sample_size,
         manifest_path=manifest_path,
@@ -87,6 +93,10 @@ def build_run_config(
         replicate_targets=replicate_targets,
         replicate_instructions=replicate_instructions,
         replicate_cache_dir=replicate_cache_dir,
+        local_cache_enabled=local_cache_enabled,
+        local_cache_dir=local_cache_dir,
+        gemini_explicit_cache=gemini_explicit_cache,
+        gemini_cache_ttl_s=gemini_cache_ttl_s,
     )
 
 
@@ -98,4 +108,6 @@ def dump_run_config(config: RunConfig, path: Path) -> None:
         data["manifest_path"] = str(config.manifest_path)
     if config.replicate_cache_dir:
         data["replicate_cache_dir"] = str(config.replicate_cache_dir)
+    if config.local_cache_dir:
+        data["local_cache_dir"] = str(config.local_cache_dir)
     path.write_text(json.dumps(data, indent=2))

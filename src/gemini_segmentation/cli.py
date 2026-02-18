@@ -8,7 +8,7 @@ import time
 import hashlib
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Protocol, Tuple
+from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
 import numpy as np
 import pandas as pd
@@ -30,11 +30,13 @@ from .fairness import (
     write_fairness_statistics,
     write_fairness_summary,
 )
+from .cache import DiskRequestCache, build_request_cache_key
 from .io import (
     encode_mask_to_b64,
     load_existing_predictions,
     plot_segmentation_masks,
     save_mask_png,
+    segmentation_masks_from_items,
     write_prediction_jsonl,
 )
 from .metrics import (
@@ -186,12 +188,98 @@ class SegmenterProtocol(Protocol):
         ...
 
 
-def _process_image(segmenter: SegmenterProtocol, img_path: Path, limiter: RateLimiter | None = None):
-    if limiter:
-        limiter.wait()
+def _process_image_with_cache(
+    segmenter_factory: Callable[[], SegmenterProtocol],
+    img_path: Path,
+    *,
+    provider: str,
+    model_name: str,
+    prompt_hash: str,
+    prompt_family: str | None,
+    temperature: float | None,
+    thinking_budget: int | None,
+    limiter: RateLimiter | None = None,
+    request_cache: Optional[DiskRequestCache] = None,
+    targets: tuple[str, ...] | None = None,
+    max_retries: int = 5,
+):
+    cache_key: str | None = None
+    if request_cache:
+        cache_key = build_request_cache_key(
+            image_path=img_path,
+            provider=provider,
+            model_name=model_name,
+            prompt_hash=prompt_hash,
+            prompt_family=prompt_family,
+            temperature=temperature,
+            thinking_budget=thinking_budget,
+            targets=targets,
+        )
+        cached_payload = request_cache.load(cache_key)
+        if cached_payload:
+            image = load_image(img_path)
+            raw_items = cached_payload.get("raw_items") or []
+            if isinstance(raw_items, list):
+                masks = segmentation_masks_from_items(
+                    raw_items, img_height=image.height, img_width=image.width
+                )
+                latency = float(cached_payload.get("latency_s", 0.0))
+                parse_success = bool(cached_payload.get("parse_success", bool(masks)))
+                timed_out = bool(cached_payload.get("timed_out", False))
+                return img_path.name, masks, latency, parse_success, timed_out, raw_items, True
+
     image = load_image(img_path)
-    masks, latency, parse_success, timed_out, raw_items = segmenter.segment(image)
-    return img_path.name, masks, latency, parse_success, timed_out, raw_items
+    retries = max(0, int(max_retries))
+    attempt = 0
+    masks: List[SegmentationMask] = []
+    latency = 0.0
+    parse_success = False
+    timed_out = False
+    raw_items: List[dict] = []
+
+    while attempt <= retries:
+        attempt += 1
+        if limiter:
+            limiter.wait()
+        segmenter = segmenter_factory()
+        try:
+            masks, latency, parse_success, timed_out, raw_items = segmenter.segment(image)
+        except Exception:
+            if attempt <= retries:
+                logging.warning(
+                    "Segmentation call failed for %s (attempt %s/%s); retrying.",
+                    img_path.name,
+                    attempt,
+                    retries + 1,
+                )
+                continue
+            raise
+
+        if (timed_out or not parse_success) and attempt <= retries:
+            logging.warning(
+                "Segmentation call returned timeout/parse failure for %s (attempt %s/%s); retrying.",
+                img_path.name,
+                attempt,
+                retries + 1,
+            )
+            continue
+        break
+
+    if request_cache and cache_key and not timed_out and parse_success and isinstance(raw_items, list):
+        request_cache.save(
+            cache_key,
+            {
+                "provider": provider,
+                "model_name": model_name,
+                "prompt_hash": prompt_hash,
+                "prompt_family": prompt_family,
+                "latency_s": float(latency),
+                "parse_success": bool(parse_success),
+                "timed_out": bool(timed_out),
+                "raw_items": raw_items,
+            },
+        )
+    return img_path.name, masks, latency, parse_success, timed_out, raw_items, False
 
 
 def _write_legacy_prediction(
@@ -292,10 +380,30 @@ def command_segment(args: argparse.Namespace) -> None:
     base_replicate_instructions = args.replicate_instructions
 
     rate_limiter = RateLimiter(args.rate_limit) if args.rate_limit else None
+    local_cache_enabled = bool(getattr(args, "local_cache", True))
+    local_cache_dir_arg = getattr(args, "local_cache_dir", None)
+    local_cache_dir = (
+        Path(local_cache_dir_arg)
+        if local_cache_dir_arg
+        else Path(args.results_dir) / ".request_cache"
+    ).expanduser().resolve()
+    gemini_explicit_cache = bool(getattr(args, "gemini_explicit_cache", True))
+    gemini_cache_ttl = int(getattr(args, "gemini_cache_ttl", 3600))
+    base_local_cache_enabled = local_cache_enabled
+    base_local_cache_dir = local_cache_dir
+    base_gemini_explicit_cache = gemini_explicit_cache
+    base_gemini_cache_ttl = gemini_cache_ttl
+    base_max_retries = int(getattr(args, "max_retries", 5))
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     for prompt_family, explicit_prompt in prompt_runs:
+        local_cache_enabled = base_local_cache_enabled
+        local_cache_dir = base_local_cache_dir
+        request_cache = DiskRequestCache(local_cache_dir) if local_cache_enabled else None
+        gemini_explicit_cache = base_gemini_explicit_cache
+        gemini_cache_ttl = base_gemini_cache_ttl
+        max_retries = base_max_retries
         model_name = base_model_name
         run_provider = base_provider
         replicate_model_version = base_replicate_model_version
@@ -331,6 +439,20 @@ def command_segment(args: argparse.Namespace) -> None:
                 )
 
         run_provider = existing_run_config.get("provider", run_provider)
+        gemini_explicit_cache = bool(
+            existing_run_config.get("gemini_explicit_cache", gemini_explicit_cache)
+        )
+        gemini_cache_ttl = int(
+            existing_run_config.get("gemini_cache_ttl_s", gemini_cache_ttl)
+        )
+        local_cache_enabled = bool(
+            existing_run_config.get("local_cache_enabled", local_cache_enabled)
+        )
+        max_retries = int(existing_run_config.get("max_retries", max_retries))
+        persisted_cache_dir = existing_run_config.get("local_cache_dir")
+        if persisted_cache_dir:
+            local_cache_dir = Path(persisted_cache_dir).expanduser().resolve()
+        request_cache = DiskRequestCache(local_cache_dir) if local_cache_enabled else None
 
         if run_provider == "moondream" and model_name == "gemini-2.5-flash":
             model_name = "moondream-3"
@@ -398,6 +520,9 @@ def command_segment(args: argparse.Namespace) -> None:
 
         prompt_payload = _prompt_payload(run_provider, prompt_family, provider_prompt)
         prompt_hash = _prompt_hash(prompt_payload)
+        request_prompt_digest = hashlib.sha256(
+            json.dumps(prompt_payload, sort_keys=True).encode("utf-8")
+        ).hexdigest()
         prompt_key = _prompt_key(prompt_family, prompt_hash)
 
         model_label = (
@@ -423,6 +548,7 @@ def command_segment(args: argparse.Namespace) -> None:
             thinking_budget=args.thinking_budget,
             temperature=args.temperature,
             timeout_s=args.timeout,
+            max_retries=max_retries,
             workers=args.workers,
             sample_size=args.sample_size,
             manifest_path=dataset_paths.manifest_path,
@@ -437,6 +563,10 @@ def command_segment(args: argparse.Namespace) -> None:
             replicate_targets=tuple(replicate_targets_arg) if replicate_targets_arg else None,
             replicate_instructions=replicate_target_instructions,
             replicate_cache_dir=replicate_cache_dir,
+            local_cache_enabled=local_cache_enabled,
+            local_cache_dir=local_cache_dir if local_cache_enabled else None,
+            gemini_explicit_cache=gemini_explicit_cache,
+            gemini_cache_ttl_s=gemini_cache_ttl,
         )
         dump_run_config(config, paths["run_config"])
 
@@ -510,21 +640,43 @@ def command_segment(args: argparse.Namespace) -> None:
                         temperature=args.temperature,
                         thinking_budget=args.thinking_budget,
                         timeout_s=args.timeout,
+                        explicit_cache=gemini_explicit_cache,
+                        cache_ttl_s=gemini_cache_ttl,
                     )
             return thread_local.segmenter
 
+        cache_hits = 0
+        cache_misses = 0
+        cache_targets = tuple(provider_prompt.targets) if provider_prompt.targets else None
         futures = {}
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             for img_path, gt_mask_path in pending_pairs:
                 futures[
                     executor.submit(
-                        lambda p=img_path: _process_image(get_segmenter(), p, rate_limiter)
+                        lambda p=img_path: _process_image_with_cache(
+                            get_segmenter,
+                            p,
+                            provider=run_provider,
+                            model_name=model_label,
+                            prompt_hash=request_prompt_digest,
+                            prompt_family=prompt_family,
+                            temperature=args.temperature if run_provider == "gemini" else None,
+                            thinking_budget=args.thinking_budget if run_provider == "gemini" else None,
+                            limiter=rate_limiter,
+                            request_cache=request_cache,
+                            targets=cache_targets,
+                            max_retries=max_retries,
+                        )
                     )
                 ] = (img_path, gt_mask_path)
 
             for future in as_completed(futures):
                 img_path, gt_mask_path = futures[future]
-                img_name, masks, latency, parse_success, timed_out, raw_items = future.result()
+                img_name, masks, latency, parse_success, timed_out, raw_items, from_cache = future.result()
+                if from_cache:
+                    cache_hits += 1
+                else:
+                    cache_misses += 1
                 mask_arrays = [m.mask for m in masks]
                 mask_save_path = paths["masks"] / img_name
                 gt_array = np.array(Image.open(gt_mask_path))
@@ -583,7 +735,11 @@ def command_segment(args: argparse.Namespace) -> None:
             write_summary(summary, paths["summary"])
 
         logging.info(
-            "Segmentation run complete for %s. Outputs at %s", prompt_key, paths["run_dir"]
+            "Segmentation run complete for %s. Outputs at %s (cache hits=%s, cache misses=%s)",
+            prompt_key,
+            paths["run_dir"],
+            cache_hits,
+            cache_misses,
         )
 
 
@@ -667,6 +823,12 @@ def build_parser() -> argparse.ArgumentParser:
     seg.add_argument("--thinking-budget", type=int, default=0, help="Thinking budget tokens")
     seg.add_argument("--temperature", type=float, default=0.5, help="Sampling temperature")
     seg.add_argument("--timeout", type=float, default=60.0, help="Client-side timeout per image")
+    seg.add_argument(
+        "--max-retries",
+        type=int,
+        default=5,
+        help="Number of retries after the first attempt when timeout/parse failure occurs",
+    )
     seg.add_argument("--workers", type=int, default=1, help="Number of worker threads")
     seg.add_argument("--sample-size", type=int, help="Limit number of images")
     seg.add_argument("--results-dir", default="results", help="Root directory for outputs")
@@ -698,6 +860,28 @@ def build_parser() -> argparse.ArgumentParser:
     seg.add_argument(
         "--replicate-cache-dir",
         help="Optional cache directory for Replicate assets (will be expanded)",
+    )
+    seg.add_argument(
+        "--local-cache",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable local request/response cache across runs",
+    )
+    seg.add_argument(
+        "--local-cache-dir",
+        help="Directory for local request/response cache records (default: <results-dir>/.request_cache)",
+    )
+    seg.add_argument(
+        "--gemini-explicit-cache",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable Gemini API explicit context caching when supported",
+    )
+    seg.add_argument(
+        "--gemini-cache-ttl",
+        type=int,
+        default=3600,
+        help="Gemini explicit cache TTL in seconds",
     )
     seg.add_argument(
         "--bootstrap-method",

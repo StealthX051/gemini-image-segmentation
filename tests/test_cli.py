@@ -36,12 +36,15 @@ sys.modules.setdefault("google.genai", genai_module)
 sys.modules.setdefault("google.genai.types", genai_types_module)
 
 from gemini_segmentation.cli import (
+    _process_image_with_cache,
     _prompt_hash,
     _resolve_provider_prompt,
     build_parser,
     command_fairness,
     command_segment,
 )
+from gemini_segmentation.cache import DiskRequestCache, build_request_cache_key
+from gemini_segmentation.io import encode_mask_to_b64
 from gemini_segmentation.prompts import ProviderPrompt
 
 
@@ -62,6 +65,40 @@ class PresetBranchParserTests(TestCase):
         self.assertEqual(args.preset_branch, "legacy")
         self.assertEqual(args.preset_name, "default")
         self.assertIsNone(args.prompt_family)
+
+
+class CacheFlagParserTests(TestCase):
+    def test_parser_defaults_for_cache_flags(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["segment", "polyp", "/tmp/data"])
+        self.assertTrue(args.local_cache)
+        self.assertIsNone(args.local_cache_dir)
+        self.assertTrue(args.gemini_explicit_cache)
+        self.assertEqual(args.gemini_cache_ttl, 3600)
+        self.assertEqual(args.max_retries, 5)
+
+    def test_parser_accepts_cache_flag_overrides(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "segment",
+                "polyp",
+                "/tmp/data",
+                "--no-local-cache",
+                "--local-cache-dir",
+                "/tmp/request_cache",
+                "--no-gemini-explicit-cache",
+                "--gemini-cache-ttl",
+                "7200",
+                "--max-retries",
+                "7",
+            ]
+        )
+        self.assertFalse(args.local_cache)
+        self.assertEqual(args.local_cache_dir, "/tmp/request_cache")
+        self.assertFalse(args.gemini_explicit_cache)
+        self.assertEqual(args.gemini_cache_ttl, 7200)
+        self.assertEqual(args.max_retries, 7)
 
 
 class CommandSegmentBranchTests(TestCase):
@@ -482,6 +519,159 @@ class ProviderPromptResolutionTests(TestCase):
         self.assertEqual(resolved.prompt, "Segment the new target.")
         self.assertIn("new target", resolved.instructions)
         self.assertEqual(resolved.instructions["new target"], "Segment the new target.")
+
+
+class LocalRequestCacheBehaviorTests(TestCase):
+    def test_retries_parse_failure_before_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            img_path = Path(tmp_dir) / "img.png"
+            from PIL import Image
+            import numpy as np
+
+            Image.fromarray(np.zeros((8, 8), dtype=np.uint8)).save(img_path)
+            cache = DiskRequestCache(Path(tmp_dir) / "cache")
+
+            class _FlakySegmenter:
+                def __init__(self) -> None:
+                    self.calls = 0
+
+                def segment(self, _image_obj):
+                    self.calls += 1
+                    if self.calls == 1:
+                        return [], 0.1, False, False, []
+                    mask = np.zeros((8, 8), dtype=np.uint8)
+                    mask[2:6, 2:6] = 255
+                    raw_items = [
+                        {
+                            "label": "lesion",
+                            "box_2d": [250, 250, 750, 750],
+                            "mask": encode_mask_to_b64(mask[2:6, 2:6]),
+                        }
+                    ]
+                    from gemini_segmentation.types import SegmentationMask
+
+                    seg_mask = SegmentationMask(2, 2, 6, 6, mask, "lesion")
+                    return [seg_mask], 0.2, True, False, raw_items
+
+            flaky = _FlakySegmenter()
+
+            _, masks, _, parse_success, timed_out, _, from_cache = _process_image_with_cache(
+                lambda: flaky,
+                img_path,
+                provider="gemini",
+                model_name="gemini-2.5-flash",
+                prompt_hash="prompt-digest",
+                prompt_family="label_v1",
+                temperature=0.5,
+                thinking_budget=0,
+                request_cache=cache,
+                max_retries=1,
+            )
+
+            self.assertFalse(from_cache)
+            self.assertTrue(parse_success)
+            self.assertFalse(timed_out)
+            self.assertEqual(len(masks), 1)
+            self.assertEqual(flaky.calls, 2)
+
+    def test_parse_failure_is_not_written_to_local_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            img_path = Path(tmp_dir) / "img.png"
+            from PIL import Image
+            import numpy as np
+
+            Image.fromarray(np.zeros((8, 8), dtype=np.uint8)).save(img_path)
+            cache = DiskRequestCache(Path(tmp_dir) / "cache")
+
+            class _FailingSegmenter:
+                def segment(self, _image_obj):
+                    raw_items = [{"label": "x", "box_2d": [0, 0, 1000, 1000], "mask": "bad"}]
+                    return [], 0.1, False, False, raw_items
+
+            _process_image_with_cache(
+                lambda: _FailingSegmenter(),
+                img_path,
+                provider="gemini",
+                model_name="gemini-2.5-flash",
+                prompt_hash="prompt-digest",
+                prompt_family="label_v1",
+                temperature=0.5,
+                thinking_budget=0,
+                request_cache=cache,
+            )
+
+            key = build_request_cache_key(
+                image_path=img_path,
+                provider="gemini",
+                model_name="gemini-2.5-flash",
+                prompt_hash="prompt-digest",
+                prompt_family="label_v1",
+                temperature=0.5,
+                thinking_budget=0,
+                targets=None,
+            )
+            self.assertIsNone(cache.load(key))
+
+    def test_cache_hit_bypasses_segmenter_call(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            img_path = Path(tmp_dir) / "img.png"
+            from PIL import Image
+            import numpy as np
+
+            image_np = np.zeros((10, 10), dtype=np.uint8)
+            Image.fromarray(image_np).save(img_path)
+            cache = DiskRequestCache(Path(tmp_dir) / "cache")
+
+            patch = np.zeros((4, 4), dtype=np.uint8)
+            patch[:, :] = 255
+            raw_items = [
+                {
+                    "label": "lesion",
+                    "box_2d": [200, 200, 600, 600],
+                    "mask": encode_mask_to_b64(patch),
+                }
+            ]
+            key = build_request_cache_key(
+                image_path=img_path,
+                provider="gemini",
+                model_name="gemini-2.5-flash",
+                prompt_hash="prompt-digest",
+                prompt_family="desc_v1",
+                temperature=0.5,
+                thinking_budget=0,
+                targets=None,
+            )
+            cache.save(
+                key,
+                {
+                    "latency_s": 0.2,
+                    "parse_success": True,
+                    "timed_out": False,
+                    "raw_items": raw_items,
+                },
+            )
+
+            class _UnexpectedSegmenter:
+                def segment(self, _image_obj):
+                    raise AssertionError("Segmenter should not be called on cache hit")
+
+            _, masks, _, parse_success, timed_out, _, from_cache = _process_image_with_cache(
+                lambda: _UnexpectedSegmenter(),
+                img_path,
+                provider="gemini",
+                model_name="gemini-2.5-flash",
+                prompt_hash="prompt-digest",
+                prompt_family="desc_v1",
+                temperature=0.5,
+                thinking_budget=0,
+                request_cache=cache,
+            )
+
+            self.assertTrue(from_cache)
+            self.assertTrue(parse_success)
+            self.assertFalse(timed_out)
+            self.assertEqual(len(masks), 1)
+            self.assertEqual(masks[0].label, "lesion")
 
 
 class ReplicateValidationTests(TestCase):
