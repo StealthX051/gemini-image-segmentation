@@ -19,6 +19,7 @@ Thumbs.db
 # comment these out if you DO want to version-control them
 segmented-images/
 data/
+data_readability/
 hyper-kvasir-segmentation.zip
 *.png
 *.jpg

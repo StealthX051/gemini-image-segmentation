@@ -1,0 +1,16 @@
+# Repository-local Codex defaults.
+# Keep this file conservative so local agents start with safe behavior.
+
+model = "gpt-5-codex"
+model_reasoning_effort = "medium"
+
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+project_doc_fallback_filenames = [
+  "AGENTS.md",
+  "README.md",
+  "CONTRIBUTING.md",
+  "docs/ARCHITECTURE.md",
+]
+project_doc_max_bytes = 65536

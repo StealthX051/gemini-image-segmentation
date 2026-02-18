@@ -7,6 +7,16 @@ This repository contains two parallel workflows for evaluating Google Gemini mod
 
 Read this document top-to-bottom when onboarding: it explains the environment, directory layout, how the notebooks work, how the CLI mirrors them, and where to extend the system (prompts, models, fairness, outputs).
 
+## Agentic development files
+- `AGENTS.md`: repository-level instructions for coding agents.
+- `.codex/config.toml`: repo-local Codex defaults (model/sandbox/doc discovery).
+- `CONTRIBUTING.md`: contributor workflow and validation commands.
+- `docs/ARCHITECTURE.md`: module boundaries, contracts, and extension points.
+- `docs/MANUSCRIPT_ALIGNMENT.md`: manuscript + post hoc method alignment constraints.
+- `docs/METHODS_CHANGELOG.md`: ordered method-version and change-ID history.
+- `docs/NOTEBOOKS.md`: legacy notebook map and migration guidance.
+- `llms.txt`: compact LLM index of canonical files and commands.
+
 ## Environment
 - **Python**: Use the conda environment in `environment.yml` (Python 3.11, scientific stack, stats, plotting, and `google-genai`).
 - **Secrets**: Provide a `.env` file with the following keys before running notebooks or the CLI:
@@ -48,6 +58,14 @@ For quick test runs without Conda, install the minimal test dependencies with:
 
 ```bash
 pip install -r requirements-dev.txt
+```
+
+If tests fail with `site-packages/docx.py` and `ModuleNotFoundError: No module named 'exceptions'`, remove the legacy `docx` package and reinstall `python-docx`:
+
+```bash
+python -m pip uninstall -y docx
+python -m pip install --upgrade python-docx
+python -c "import docx; print(docx.__file__)"
 ```
 
 ### Commands
@@ -130,4 +148,3 @@ results/<dataset>/<model>/<run_id>/
 - **Inputs are unchanged**: keep all datasets where the notebooks expect them; the CLI reads the same locations.
 - **Outputs are unified**: prefer the `results/` tree for new runs; enable `--legacy-predictions` only if older notebook consumers need the original JSON drops.
 - **Tmux/parallelism**: you can still orchestrate multiple CLI runs with tmux; within a run, use `--workers` for thread-level parallelism guarded by the global rate limiter.
-
