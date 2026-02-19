@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import logging
@@ -610,7 +611,7 @@ class ReplicateSegmenter:
             request = Request(url, headers={"User-Agent": "gemini-segmentation/replicate"})
             with urlopen(request, timeout=30) as resp:
                 content = resp.read()
-        except URLError:  # pragma: no cover - network failures
+        except (URLError, TimeoutError, OSError, ValueError):  # pragma: no cover - network failures
             logging.exception("Failed to download Replicate mask from %s", url)
             return None
 
@@ -628,16 +629,97 @@ class ReplicateSegmenter:
 
     @staticmethod
     def _extract_img_url(result: Any) -> str | None:
+        return ReplicateSegmenter._extract_img_url_inner(result, seen=set())
+
+    @staticmethod
+    def _is_url_like(value: str) -> bool:
+        candidate = value.strip()
+        if not candidate:
+            return False
+        if candidate.startswith("data:"):
+            return True
+        parsed = urlparse(candidate)
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+    @staticmethod
+    def _extract_img_url_inner(result: Any, *, seen: set[int]) -> str | None:
+        if result is None:
+            return None
         if isinstance(result, str):
-            return result
+            value = result.strip()
+            return value if ReplicateSegmenter._is_url_like(value) else None
+        if isinstance(result, (bytes, bytearray)):
+            return None
+
+        obj_id = id(result)
+        if obj_id in seen:
+            return None
+        seen.add(obj_id)
+
         if isinstance(result, dict):
-            return result.get("img") or result.get("image")
-        if isinstance(result, (list, tuple)):
-            for item in result:
-                candidate = ReplicateSegmenter._extract_img_url(item)
+            for key in ("img", "image", "url", "output"):
+                if key in result:
+                    candidate = ReplicateSegmenter._extract_img_url_inner(result[key], seen=seen)
+                    if candidate:
+                        return candidate
+            for value in result.values():
+                candidate = ReplicateSegmenter._extract_img_url_inner(value, seen=seen)
                 if candidate:
                     return candidate
+            return None
+
+        if isinstance(result, (list, tuple, set)):
+            for item in result:
+                candidate = ReplicateSegmenter._extract_img_url_inner(item, seen=seen)
+                if candidate:
+                    return candidate
+            return None
+
+        url_attr = getattr(result, "url", None)
+        if isinstance(url_attr, str):
+            candidate = ReplicateSegmenter._extract_img_url_inner(url_attr, seen=seen)
+            if candidate:
+                return candidate
+        elif callable(url_attr):
+            try:
+                candidate = ReplicateSegmenter._extract_img_url_inner(url_attr(), seen=seen)
+                if candidate:
+                    return candidate
+            except Exception:
+                pass
+
+        for attr_name in ("img", "image", "output"):
+            if hasattr(result, attr_name):
+                candidate = ReplicateSegmenter._extract_img_url_inner(
+                    getattr(result, attr_name),
+                    seen=seen,
+                )
+                if candidate:
+                    return candidate
+
         return None
+
+    def _invoke_replicate(self, img_bytes: bytes, instruction: str) -> Any:
+        with io.BytesIO(img_bytes) as image_input:
+            # Replicate's Python client expects a file-like object (or URL/data URI), not raw bytes.
+            image_input.name = "input.jpg"  # type: ignore[attr-defined]
+            try:
+                return self.client.run(
+                    self.model_version,
+                    input={"image": image_input, "instruction": instruction},
+                )
+            except TypeError as exc:
+                if "not JSON serializable" not in str(exc):
+                    raise
+                logging.warning(
+                    "Replicate client rejected file-like image payload; retrying with data URI fallback."
+                )
+
+        data_uri = f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode('ascii')}"
+        return self.client.run(
+            self.model_version,
+            input={"image": data_uri, "instruction": instruction},
+        )
 
     def _segment_single(
         self,
@@ -648,7 +730,7 @@ class ReplicateSegmenter:
         instruction: str,
     ) -> Tuple[SegmentationMask | None, Dict[str, Any] | None, bool]:
         try:
-            result = self.client.run(self.model_version, input={"image": img_bytes, "instruction": instruction})
+            result = self._invoke_replicate(img_bytes, instruction)
             logging.debug("Replicate raw output for '%s': %s", label or instruction, result)
         except Exception:  # pragma: no cover - network/API failures
             logging.exception("Replicate segmentation call failed for label '%s'", label)

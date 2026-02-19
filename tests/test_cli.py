@@ -1028,6 +1028,119 @@ class ReplicateValidationTests(TestCase):
             ):
                 command_segment(args)
 
+    @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
+    @mock.patch("gemini_segmentation.cli.load_existing_predictions", return_value={})
+    @mock.patch("gemini_segmentation.cli.paired_masks", return_value=[])
+    @mock.patch("gemini_segmentation.cli.sample_images", return_value=[])
+    @mock.patch("gemini_segmentation.cli.read_manifest", return_value=[])
+    @mock.patch("gemini_segmentation.cli._prepare_output_dirs")
+    @mock.patch("gemini_segmentation.cli.discover_dataset")
+    @mock.patch("gemini_segmentation.cli.build_run_config")
+    @mock.patch("gemini_segmentation.cli.dump_run_config")
+    @mock.patch("gemini_segmentation.cli._resolve_provider_prompt")
+    def test_replicate_resume_preserves_instruction_mapping_from_run_config(
+        self,
+        mock_resolve_provider_prompt,
+        _mock_dump_run_config,
+        mock_build_run_config,
+        mock_discover,
+        mock_prepare_dirs,
+        *_,
+    ) -> None:
+        def _resolve_prompt(**kwargs):
+            targets = tuple(kwargs.get("target_overrides") or ())
+            instructions = dict(kwargs.get("replicate_instruction_overrides") or {})
+            primary = (
+                instructions.get(targets[0], kwargs.get("explicit_prompt") or "")
+                if targets
+                else kwargs.get("explicit_prompt") or ""
+            )
+            return ProviderPrompt(
+                prompt=primary,
+                targets=targets or None,
+                instructions=instructions or None,
+            )
+
+        mock_resolve_provider_prompt.side_effect = _resolve_prompt
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dataset_root = Path(tmp_dir) / "data"
+            dataset_root.mkdir(parents=True, exist_ok=True)
+            manifest_path = dataset_root / "manifest.txt"
+            masks_dir = dataset_root / "masks"
+            mock_discover.return_value = SimpleNamespace(
+                manifest_path=manifest_path, masks_dir=masks_dir
+            )
+
+            run_config = {
+                "provider": "replicate",
+                "replicate_model_version": "sa2va/segmenter:1234",
+                "replicate_targets": ["lesion", "instrument"],
+                "replicate_instructions": {
+                    "lesion": "find lesion",
+                    "instrument": "find instrument",
+                },
+            }
+            run_config_path = Path(tmp_dir) / "run_config.json"
+            run_config_path.write_text(json.dumps(run_config), encoding="utf-8")
+            run_dir = Path(tmp_dir) / "results" / "polyp" / "sa2va/segmenter:1234" / "label" / "run"
+            mock_prepare_dirs.return_value = {
+                "run_dir": run_dir,
+                "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": run_config_path,
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+
+            args = argparse.Namespace(
+                command="segment",
+                dataset_name="polyp",
+                dataset_root=str(dataset_root),
+                manifest=None,
+                provider="replicate",
+                model_name="sa2va/segmenter",
+                prompt="",
+                prompt_file=None,
+                prompt_preset=None,
+                preset_name="default",
+                preset_branch=None,
+                moondream_targets=None,
+                moondream_endpoint=None,
+                moondream_api_key=None,
+                thinking_budget=0,
+                temperature=0.5,
+                timeout=1.0,
+                workers=1,
+                sample_size=None,
+                results_dir=tmp_dir,
+                run_id="run",
+                rate_limit=None,
+                legacy_predictions=False,
+                success_threshold=0.5,
+                bootstrap_method="bca",
+                bootstrap_resamples=5000,
+                dry_run=True,
+                replicate_model_version=None,
+                replicate_targets=None,
+                replicate_instructions=None,
+                replicate_cache_dir=None,
+                prompt_family=None,
+            )
+
+            command_segment(args)
+
+        kwargs = mock_build_run_config.call_args.kwargs
+        self.assertEqual(kwargs["replicate_model_version"], "sa2va/segmenter:1234")
+        self.assertEqual(kwargs["replicate_targets"], ("lesion", "instrument"))
+        self.assertEqual(
+            kwargs["replicate_instructions"],
+            {"lesion": "find lesion", "instrument": "find instrument"},
+        )
+
 
 def test_command_fairness_invokes_analyze_with_expected_arguments(tmp_path, monkeypatch):
     run_dir = tmp_path / "run"

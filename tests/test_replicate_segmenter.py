@@ -1,5 +1,6 @@
 import argparse
 import base64
+import hashlib
 import io
 import os
 import sys
@@ -39,13 +40,26 @@ def _install_google_stubs() -> None:
 
 
 def _install_pandas_stub() -> None:
+    try:
+        import pandas as pandas_module  # type: ignore
+        if hasattr(pandas_module, "read_csv"):
+            return
+    except Exception:
+        pass
     pandas_module = types.ModuleType("pandas")
     sys.modules.setdefault("pandas", pandas_module)
 
 
 def _install_yaml_stub() -> None:
+    try:
+        import yaml as yaml_module  # type: ignore
+        if hasattr(yaml_module, "safe_load") and hasattr(yaml_module, "safe_dump"):
+            return
+    except Exception:
+        pass
     yaml_module = types.ModuleType("yaml")
     yaml_module.safe_load = lambda stream: {}
+    yaml_module.safe_dump = lambda payload: "{}\n"
     sys.modules.setdefault("yaml", yaml_module)
 
 
@@ -120,6 +134,11 @@ def test_sa2va_replicate_segmenter_uses_replicate_output() -> None:
 
     client_mock.run.assert_called_once()
     download_mock.assert_called_once_with(url)
+    submitted_input = client_mock.run.call_args.kwargs["input"]
+    submitted_image = submitted_input["image"]
+    assert submitted_input["instruction"] == "segment"
+    assert not isinstance(submitted_image, (bytes, bytearray))
+    assert hasattr(submitted_image, "read")
 
     assert not timed_out
     assert parse_success
@@ -142,6 +161,186 @@ def test_sa2va_replicate_segmenter_uses_replicate_output() -> None:
     ]
     decoded_mask = _decode_mask(raw_items[0]["mask"])
     np.testing.assert_array_equal(decoded_mask, mask_array[1:2, 1:3])
+
+
+def test_replicate_segmenter_requires_token() -> None:
+    _install_replicate_stub({"img": "http://example.com/mask.png"})
+    with mock.patch.dict(os.environ, {}, clear=True):
+        try:
+            Sa2VAReplicateSegmenter(
+                model_name="sa2va/segmenter",
+                model_version="sa2va/segmenter:1234",
+                instruction="segment",
+            )
+        except ValueError as exc:
+            assert "REPLICATE_API_TOKEN is required" in str(exc)
+        else:
+            raise AssertionError("Expected ValueError when REPLICATE_API_TOKEN is missing")
+
+
+def test_extract_img_url_supports_output_variants() -> None:
+    class _FileOutputLike:
+        def __init__(self, url: str) -> None:
+            self.url = url
+
+    url = "http://example.com/mask.png"
+    cases = [
+        {"img": url},
+        {"image": url},
+        [{"img": url}],
+        {"img": {"url": url}},
+        {"output": [{"image": _FileOutputLike(url)}]},
+        _FileOutputLike(url),
+    ]
+    for payload in cases:
+        assert Sa2VAReplicateSegmenter._extract_img_url(payload) == url
+    assert Sa2VAReplicateSegmenter._extract_img_url({"response": "ok"}) is None
+
+
+def test_replicate_segmenter_timeout_sets_timed_out_flag() -> None:
+    _install_replicate_stub({"img": "http://example.com/mask.png"})
+    with mock.patch.dict(os.environ, {"REPLICATE_API_TOKEN": "token"}, clear=False):
+        segmenter = Sa2VAReplicateSegmenter(
+            model_name="sa2va/segmenter",
+            model_version="sa2va/segmenter:1234",
+            instruction="segment",
+            timeout_s=5.0,
+        )
+
+    with mock.patch("gemini_segmentation.models._run_with_timeout", return_value=(None, True)):
+        masks, latency, parse_success, timed_out, raw_items = segmenter.segment(Image.new("RGB", (4, 4)))
+
+    assert masks == []
+    assert latency == 0.0
+    assert parse_success is False
+    assert timed_out is True
+    assert raw_items == []
+
+
+def test_replicate_segmenter_reports_parse_failure_on_missing_output_url() -> None:
+    _install_replicate_stub({"response": "ok"})
+    with mock.patch.dict(os.environ, {"REPLICATE_API_TOKEN": "token"}, clear=False):
+        segmenter = Sa2VAReplicateSegmenter(
+            model_name="sa2va/segmenter",
+            model_version="sa2va/segmenter:1234",
+            instruction="segment",
+            timeout_s=5.0,
+        )
+
+    masks, _, parse_success, timed_out, raw_items = segmenter.segment(Image.new("RGB", (4, 4)))
+    assert masks == []
+    assert parse_success is False
+    assert timed_out is False
+    assert raw_items == []
+
+
+def test_replicate_segmenter_reports_parse_failure_on_empty_mask() -> None:
+    _install_replicate_stub({"img": "http://example.com/mask.png"})
+    with mock.patch.dict(os.environ, {"REPLICATE_API_TOKEN": "token"}, clear=False):
+        segmenter = Sa2VAReplicateSegmenter(
+            model_name="sa2va/segmenter",
+            model_version="sa2va/segmenter:1234",
+            instruction="segment",
+            timeout_s=5.0,
+        )
+
+    empty_mask = Image.fromarray(np.zeros((4, 4), dtype=np.uint8), mode="L")
+    with mock.patch.object(Sa2VAReplicateSegmenter, "_download_mask", return_value=empty_mask):
+        masks, _, parse_success, timed_out, raw_items = segmenter.segment(Image.new("RGB", (4, 4)))
+
+    assert masks == []
+    assert parse_success is False
+    assert timed_out is False
+    assert raw_items == []
+
+
+def test_download_mask_prefers_cached_file() -> None:
+    _install_replicate_stub({"img": "http://example.com/mask.png"})
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cache_dir = Path(tmp_dir) / "cache"
+        with mock.patch.dict(os.environ, {"REPLICATE_API_TOKEN": "token"}, clear=False):
+            segmenter = Sa2VAReplicateSegmenter(
+                model_name="sa2va/segmenter",
+                model_version="sa2va/segmenter:1234",
+                instruction="segment",
+                cache_dir=cache_dir,
+            )
+
+        url = "http://example.com/mask.png"
+        cache_path = cache_dir / f"{hashlib.sha256(url.encode('utf-8')).hexdigest()}.png"
+        expected = np.zeros((3, 3), dtype=np.uint8)
+        expected[1, 1] = 255
+        Image.fromarray(expected, mode="L").save(cache_path)
+
+        with mock.patch("gemini_segmentation.models.urlopen", side_effect=AssertionError("network call not expected")):
+            mask = segmenter._download_mask(url)
+
+    assert mask is not None
+    np.testing.assert_array_equal(np.array(mask), expected)
+
+
+def test_download_mask_returns_none_for_invalid_image_bytes() -> None:
+    _install_replicate_stub({"img": "http://example.com/mask.png"})
+    with mock.patch.dict(os.environ, {"REPLICATE_API_TOKEN": "token"}, clear=False):
+        segmenter = Sa2VAReplicateSegmenter(
+            model_name="sa2va/segmenter",
+            model_version="sa2va/segmenter:1234",
+            instruction="segment",
+        )
+
+    class _DummyResponse:
+        def __init__(self, payload: bytes) -> None:
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self) -> bytes:
+            return self.payload
+
+    with mock.patch(
+        "gemini_segmentation.models.urlopen",
+        return_value=_DummyResponse(b"not-an-image"),
+    ):
+        assert segmenter._download_mask("http://example.com/mask.png") is None
+
+
+def test_replicate_segmenter_uses_per_target_instruction_mapping() -> None:
+    client_mock = _install_replicate_stub({"img": "http://example.com/mask.png"})
+    client_mock.run.side_effect = [
+        {"img": "http://example.com/mask1.png"},
+        {"img": "http://example.com/mask2.png"},
+    ]
+    with mock.patch.dict(os.environ, {"REPLICATE_API_TOKEN": "token"}, clear=False):
+        segmenter = Sa2VAReplicateSegmenter(
+            model_name="sa2va/segmenter",
+            model_version="sa2va/segmenter:1234",
+            instruction="fallback",
+            timeout_s=5.0,
+            targets=["lesion", "instrument"],
+            instructions={"lesion": "find lesion", "instrument": "find instrument"},
+        )
+
+    mask = np.zeros((4, 4), dtype=np.uint8)
+    mask[1:3, 1:3] = 255
+    with mock.patch.object(
+        Sa2VAReplicateSegmenter,
+        "_download_mask",
+        side_effect=[Image.fromarray(mask, mode="L"), Image.fromarray(mask, mode="L")],
+    ):
+        masks, _, parse_success, timed_out, raw_items = segmenter.segment(Image.new("RGB", (4, 4)))
+
+    assert parse_success is True
+    assert timed_out is False
+    assert len(masks) == 2
+    assert [item["label"] for item in raw_items] == ["lesion", "instrument"]
+    assert [call.kwargs["input"]["instruction"] for call in client_mock.run.call_args_list] == [
+        "find lesion",
+        "find instrument",
+    ]
 
 
 def test_cli_parses_replicate_args_into_run_config() -> None:

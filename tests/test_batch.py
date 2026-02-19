@@ -206,6 +206,201 @@ def test_build_segment_command_for_moondream_omits_gemini_sampling_flags(tmp_pat
     assert cmd.count("--prompt-family") == 3
 
 
+def test_build_jobs_parses_replicate_fields(tmp_path) -> None:
+    config = {
+        "schema_version": 1,
+        "study_id": "study",
+        "results_dir": str(tmp_path / "results"),
+        "defaults": {
+            "provider": "replicate",
+            "prompt_families": ["label_v1", "desc_v1", "desc_neg_v1"],
+            "replicate_model_version": "sa2va/segmenter:1234",
+            "replicate_targets": ["lesion", "instrument"],
+            "replicate_instructions": ["find lesion", "find instrument"],
+            "replicate_cache_dir": str(tmp_path / "replicate_cache"),
+        },
+        "datasets": [{"name": "polyp", "root": str(tmp_path / "dataset")}],
+        "models": [{"name": "sa2va-26b"}],
+    }
+    jobs = batch.build_jobs(config)
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.provider == "replicate"
+    assert job.replicate_model_version == "sa2va/segmenter:1234"
+    assert job.replicate_targets == ("lesion", "instrument")
+    assert job.replicate_instructions == ("find lesion", "find instrument")
+    assert job.replicate_cache_dir == (tmp_path / "replicate_cache")
+
+
+def test_build_segment_command_for_replicate_includes_provider_flags(tmp_path) -> None:
+    job = batch.BatchJob(
+        dataset_name="polyp",
+        dataset_root=tmp_path / "dataset",
+        model_name="sa2va-26b",
+        provider="replicate",
+        prompt_families=("label_v1", "desc_v1", "desc_neg_v1"),
+        manifest=None,
+        timeout=60.0,
+        max_retries=5,
+        workers=4,
+        sample_size=10,
+        rate_limit=0.5,
+        local_cache=True,
+        local_cache_dir=Path("results/.request_cache"),
+        gemini_explicit_cache=True,
+        gemini_cache_ttl=3600,
+        thinking_budget=0,
+        temperature=0.5,
+        legacy_predictions=False,
+        success_threshold=0.5,
+        bootstrap_method="bca",
+        bootstrap_resamples=5000,
+        replicate_model_version="sa2va/segmenter:1234",
+        replicate_targets=("lesion", "instrument"),
+        replicate_instructions=("find lesion", "find instrument"),
+        replicate_cache_dir=Path("results/.replicate_mask_cache"),
+    )
+    cmd = batch.build_segment_command(job, run_id="replicate-run", results_dir=tmp_path / "results")
+
+    assert "--provider" in cmd and "replicate" in cmd
+    assert "--replicate-model-version" in cmd and "sa2va/segmenter:1234" in cmd
+    assert cmd.count("--replicate-target") == 2
+    assert cmd.count("--replicate-instruction") == 2
+    assert "--replicate-cache-dir" in cmd
+    cache_dir_idx = cmd.index("--replicate-cache-dir")
+    assert Path(cmd[cache_dir_idx + 1]) == Path("results/.replicate_mask_cache")
+    assert "--thinking-budget" not in cmd
+    assert "--temperature" not in cmd
+
+
+def test_preflight_rejects_replicate_job_missing_model_version(tmp_path, monkeypatch) -> None:
+    dataset_root = tmp_path / "dataset"
+    _make_dataset_root(dataset_root)
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "dummy-token")
+    job = batch.BatchJob(
+        dataset_name="polyp",
+        dataset_root=dataset_root,
+        model_name="sa2va-26b",
+        provider="replicate",
+        prompt_families=("label_v1",),
+        manifest=None,
+        timeout=60.0,
+        max_retries=5,
+        workers=1,
+        sample_size=None,
+        rate_limit=None,
+        local_cache=True,
+        local_cache_dir=Path("results/.request_cache"),
+        gemini_explicit_cache=True,
+        gemini_cache_ttl=3600,
+        thinking_budget=0,
+        temperature=0.5,
+        legacy_predictions=False,
+        success_threshold=0.5,
+        bootstrap_method="bca",
+        bootstrap_resamples=5000,
+        replicate_model_version=None,
+    )
+    try:
+        batch.preflight_jobs([job], skip_env_checks=False)
+    except ValueError as exc:
+        assert "replicate_model_version" in str(exc)
+    else:
+        raise AssertionError("Expected preflight to fail when replicate_model_version is missing")
+
+
+def test_preflight_rejects_replicate_instruction_cardinality_mismatch(tmp_path, monkeypatch) -> None:
+    dataset_root = tmp_path / "dataset"
+    _make_dataset_root(dataset_root)
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "dummy-token")
+    job = batch.BatchJob(
+        dataset_name="polyp",
+        dataset_root=dataset_root,
+        model_name="sa2va-26b",
+        provider="replicate",
+        prompt_families=("label_v1",),
+        manifest=None,
+        timeout=60.0,
+        max_retries=5,
+        workers=1,
+        sample_size=None,
+        rate_limit=None,
+        local_cache=True,
+        local_cache_dir=Path("results/.request_cache"),
+        gemini_explicit_cache=True,
+        gemini_cache_ttl=3600,
+        thinking_budget=0,
+        temperature=0.5,
+        legacy_predictions=False,
+        success_threshold=0.5,
+        bootstrap_method="bca",
+        bootstrap_resamples=5000,
+        replicate_model_version="sa2va/segmenter:1234",
+        replicate_targets=("lesion", "instrument"),
+        replicate_instructions=("find lesion",),
+    )
+    try:
+        batch.preflight_jobs([job], skip_env_checks=False)
+    except ValueError as exc:
+        assert "mismatched" in str(exc)
+    else:
+        raise AssertionError("Expected preflight to fail for mismatched replicate targets/instructions")
+
+
+def test_run_batch_auto_fairness_discovers_replicate_runs_using_model_version(tmp_path, monkeypatch) -> None:
+    dataset_root = tmp_path / "dataset"
+    _make_dataset_root(dataset_root)
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "dummy-token")
+
+    config = {
+        "schema_version": 1,
+        "study_id": "replicate_study",
+        "results_dir": str(tmp_path / "results"),
+        "defaults": {
+            "provider": "replicate",
+            "prompt_families": ["label_v1"],
+            "replicate_model_version": "sa2va/segmenter:1234",
+            "replicate_targets": ["lesion"],
+            "replicate_instructions": ["find lesion"],
+        },
+        "datasets": [{"name": "polyp", "root": str(dataset_root)}],
+        "models": [{"name": "sa2va-26b"}],
+    }
+    config_path = tmp_path / "replicate_batch.yaml"
+    _write_yaml(config_path, config)
+
+    seen_model_names = []
+
+    def fake_discover_prompt_run_dirs(*, results_dir, dataset_name, model_name, run_id):
+        seen_model_names.append(model_name)
+        safe_model_name = model_name.replace(":", "_")
+        run_dir = results_dir / dataset_name / safe_model_name / "label_v1-1234" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        return [run_dir]
+
+    def fake_run_command(cmd, log_path):
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("log", encoding="utf-8")
+        return 0, 0.1, "2026-02-19T10:00:00", "2026-02-19T10:00:01"
+
+    monkeypatch.setattr(batch, "_run_command", fake_run_command)
+    monkeypatch.setattr(batch, "discover_prompt_run_dirs", fake_discover_prompt_run_dirs)
+
+    args = argparse.Namespace(
+        config=str(config_path),
+        overrides=None,
+        run_id="replicate-fairness-run",
+        only_dataset=None,
+        only_model=None,
+        auto_fairness=True,
+        dry_run=False,
+        stop_on_failure=False,
+    )
+    exit_code = batch.run_batch(args)
+    assert exit_code == 0
+    assert seen_model_names == ["sa2va/segmenter:1234"]
+
+
 def test_run_batch_continues_on_failure_and_returns_nonzero(tmp_path, monkeypatch) -> None:
     dataset_root = tmp_path / "dataset"
     _make_dataset_root(dataset_root)

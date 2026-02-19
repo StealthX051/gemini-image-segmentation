@@ -30,6 +30,7 @@ DEFAULT_GEMINI_MODELS = (
     "gemini-robotics-er-1.5-preview",
 )
 DEFAULT_MOONDREAM_MODELS = ("moondream-3",)
+DEFAULT_REPLICATE_BATCH_PATTERN = "replicate_sa2va_{dataset}_full_*"
 
 MODEL_DISPLAY_NAMES = {
     "gemini-2.5-flash": "Gemini 2.5 Flash",
@@ -122,6 +123,11 @@ def _model_sort_key(model: str) -> tuple[int, str]:
 
 
 def _display_model_name(model: str) -> str:
+    normalized = model.lower()
+    if "sa2va-26b-image" in normalized:
+        return "SA2VA 26B (Replicate)"
+    if "sa2va-4b-image" in normalized:
+        return "SA2VA 4B (Replicate)"
     return MODEL_DISPLAY_NAMES.get(model, model)
 
 
@@ -141,6 +147,41 @@ def _iter_run_dirs(results_dir: Path, dataset: str, model: str, run_id: str) -> 
         if run_dir.is_dir():
             run_dirs.append(run_dir)
     return run_dirs
+
+
+def _discover_models_for_run_id(
+    *,
+    results_dir: Path,
+    dataset: str,
+    run_id: str,
+    provider: str,
+) -> List[str]:
+    dataset_dir = results_dir / dataset
+    if not dataset_dir.exists():
+        return []
+
+    discovered: set[str] = set()
+    for model_dir in dataset_dir.iterdir():
+        if not model_dir.is_dir():
+            continue
+        for prompt_dir in model_dir.iterdir():
+            if not prompt_dir.is_dir():
+                continue
+            run_dir = prompt_dir / run_id
+            if not run_dir.is_dir():
+                continue
+            run_config_path = run_dir / "run_config.json"
+            if not run_config_path.exists():
+                continue
+            try:
+                run_config = _load_json(run_config_path)
+            except Exception:
+                continue
+            if str(run_config.get("provider", "")).lower() != provider.lower():
+                continue
+            discovered.add(model_dir.name)
+            break
+    return sorted(discovered, key=_model_sort_key)
 
 
 def _load_metric_row(run_dir: Path, model: str, run_id: str, source: str) -> Optional[MetricRow]:
@@ -237,6 +278,7 @@ def _render_markdown(
     dataset: str,
     gemini_run_id: str,
     moondream_run_id: str,
+    replicate_run_id: Optional[str],
     output_path: Path,
 ) -> None:
     grouped = _group_rows(rows)
@@ -246,6 +288,8 @@ def _render_markdown(
     lines.append(f"- Generated: {datetime.now().isoformat(timespec='seconds')}")
     lines.append(f"- Gemini run ID: `{gemini_run_id}`")
     lines.append(f"- Moondream run ID: `{moondream_run_id}`")
+    if replicate_run_id:
+        lines.append(f"- Replicate run ID: `{replicate_run_id}`")
     lines.append("")
     lines.append("Metrics include mean with 95% CI, median values, and success rate.")
     lines.append("")
@@ -279,6 +323,7 @@ def _render_html(
     dataset: str,
     gemini_run_id: str,
     moondream_run_id: str,
+    replicate_run_id: Optional[str],
     output_path: Path,
 ) -> None:
     grouped = _group_rows(rows)
@@ -301,6 +346,8 @@ def _render_html(
     html_parts.append(f"<div>Generated: {datetime.now().isoformat(timespec='seconds')}</div>")
     html_parts.append(f"<div>Gemini run ID: <code>{gemini_run_id}</code></div>")
     html_parts.append(f"<div>Moondream run ID: <code>{moondream_run_id}</code></div>")
+    if replicate_run_id:
+        html_parts.append(f"<div>Replicate run ID: <code>{replicate_run_id}</code></div>")
     html_parts.append("<div>Metrics include mean with 95% CI, median values, and success rate.</div>")
     html_parts.append("</div>")
 
@@ -341,6 +388,7 @@ def _render_pdf(
     dataset: str,
     gemini_run_id: str,
     moondream_run_id: str,
+    replicate_run_id: Optional[str],
     output_path: Path,
 ) -> None:
     grouped = _group_rows(rows)
@@ -351,7 +399,12 @@ def _render_pdf(
         cover.text(0.05, 0.84, f"Generated: {datetime.now().isoformat(timespec='seconds')}", fontsize=10)
         cover.text(0.05, 0.80, f"Gemini run ID: {gemini_run_id}", fontsize=10)
         cover.text(0.05, 0.76, f"Moondream run ID: {moondream_run_id}", fontsize=10)
-        cover.text(0.05, 0.70, "Metrics include mean with 95% CI, median values, and success rate.", fontsize=10)
+        if replicate_run_id:
+            cover.text(0.05, 0.72, f"Replicate run ID: {replicate_run_id}", fontsize=10)
+            meta_y = 0.66
+        else:
+            meta_y = 0.70
+        cover.text(0.05, meta_y, "Metrics include mean with 95% CI, median values, and success rate.", fontsize=10)
         cover.gca().axis("off")
         pdf.savefig(cover, bbox_inches="tight")
         plt.close(cover)
@@ -437,6 +490,7 @@ def generate_prompt_comparison_report(
     dataset: str,
     gemini_run_id: Optional[str],
     moondream_run_id: Optional[str],
+    replicate_run_id: Optional[str],
 ) -> ReportArtifacts:
     resolved_gemini_run_id = gemini_run_id or _find_latest_successful_batch_run(
         results_dir, f"{dataset}_full_3x3_w10_*"
@@ -453,6 +507,10 @@ def generate_prompt_comparison_report(
         raise FileNotFoundError(
             "Unable to auto-detect a successful Moondream full run ID. Pass --moondream-run-id explicitly."
         )
+
+    resolved_replicate_run_id = replicate_run_id or _find_latest_successful_batch_run(
+        results_dir, DEFAULT_REPLICATE_BATCH_PATTERN.format(dataset=dataset)
+    )
 
     rows: List[MetricRow] = []
     rows.extend(
@@ -473,6 +531,27 @@ def generate_prompt_comparison_report(
             source="moondream",
         )
     )
+    if resolved_replicate_run_id:
+        replicate_models = _discover_models_for_run_id(
+            results_dir=results_dir,
+            dataset=dataset,
+            run_id=resolved_replicate_run_id,
+            provider="replicate",
+        )
+        if replicate_run_id and not replicate_models:
+            raise FileNotFoundError(
+                f"No Replicate rows found for run ID '{replicate_run_id}'. "
+                "Check --replicate-run-id and results directory structure."
+            )
+        rows.extend(
+            _collect_rows(
+                results_dir=results_dir,
+                dataset=dataset,
+                run_id=resolved_replicate_run_id,
+                models=replicate_models,
+                source="replicate",
+            )
+        )
     if not rows:
         raise FileNotFoundError(
             "No comparison rows were found. Check run IDs and results directory structure."
@@ -491,6 +570,7 @@ def generate_prompt_comparison_report(
         dataset=dataset,
         gemini_run_id=resolved_gemini_run_id,
         moondream_run_id=resolved_moondream_run_id,
+        replicate_run_id=resolved_replicate_run_id,
         output_path=markdown_path,
     )
     _render_html(
@@ -498,6 +578,7 @@ def generate_prompt_comparison_report(
         dataset=dataset,
         gemini_run_id=resolved_gemini_run_id,
         moondream_run_id=resolved_moondream_run_id,
+        replicate_run_id=resolved_replicate_run_id,
         output_path=html_path,
     )
     _render_pdf(
@@ -505,6 +586,7 @@ def generate_prompt_comparison_report(
         dataset=dataset,
         gemini_run_id=resolved_gemini_run_id,
         moondream_run_id=resolved_moondream_run_id,
+        replicate_run_id=resolved_replicate_run_id,
         output_path=pdf_path,
     )
 
@@ -566,6 +648,13 @@ def _parse_args() -> argparse.Namespace:
         "--moondream-run-id",
         help="Moondream run ID to compare (defaults to latest successful 'moondream3_<dataset>_full_*' batch run).",
     )
+    parser.add_argument(
+        "--replicate-run-id",
+        help=(
+            "Replicate run ID to compare "
+            "(defaults to latest successful 'replicate_sa2va_<dataset>_full_*' batch run when available)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -578,6 +667,7 @@ def main() -> None:
         dataset=args.dataset,
         gemini_run_id=args.gemini_run_id,
         moondream_run_id=args.moondream_run_id,
+        replicate_run_id=args.replicate_run_id,
     )
     LOGGER.info("Comparison report ready under %s", artifacts.markdown.parent)
 

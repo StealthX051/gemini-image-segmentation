@@ -12,6 +12,10 @@ Primary project docs:
 - docs/METHODS_CHANGELOG.md
 - docs/NOTEBOOKS.md
 
+Legacy notebook locations:
+- notebooks/
+- ita_fitzpatrick_analysis.ipynb
+
 Primary code entrypoints:
 - src/gemini_segmentation/cli.py
 - src/gemini_segmentation/models.py
@@ -32,13 +36,16 @@ Core config files:
 
 Main commands:
 - python -m gemini_segmentation.cli segment <dataset_name> <dataset_root> [flags]
+- python -m gemini_segmentation.cli segment polyp <dataset_root> --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --prompt-family label_v1 --sample-size 10 --workers 10 --rate-limit 0.5 --max-retries 5 --local-cache --local-cache-dir results/.request_cache --replicate-cache-dir results/.replicate_mask_cache --run-id <run_id>
+- python -m gemini_segmentation.cli segment polyp <dataset_root> --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --prompt-family label_v1 --sample-size 10 --workers 1 --rate-limit 12 --max-retries 2 --local-cache --local-cache-dir results/.request_cache --replicate-cache-dir results/.replicate_mask_cache --run-id <run_id>  # throttled-account fallback
 - python -m gemini_segmentation.cli fairness <dataset_name> <dataset_root> <run_dir> [flags]
 - python -m gemini_segmentation.batch --config <configs/benchmarks/*.yaml> [flags]
+- python -m gemini_segmentation.batch --config configs/benchmarks/ablation_robotics_canonical.yaml --overrides configs/benchmarks/replicate_sa2va_polyp.local.yaml --run-id replicate_sa2va_polyp_full_<YYYYMMDD-HHMMSS>
 - .\scripts\run_polyp_full_3x3_w10.ps1 [-RunId <id>] [-NoLiveMonitor]
 - python -m gemini_segmentation.paper.make_all --results <path/to/results.csv_or.parquet>
 - python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml
 - python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>
-- python -m gemini_segmentation.paper.prompt_comparison --dataset polyp [--gemini-run-id <id>] [--moondream-run-id <id>]
+- python -m gemini_segmentation.paper.prompt_comparison --dataset polyp [--gemini-run-id <id>] [--moondream-run-id <id>] [--replicate-run-id <id>]
 
 Primary test targets:
 - pytest -q
@@ -47,5 +54,6 @@ Primary test targets:
 - pytest -q tests/test_moondream_segmenter.py
 - pytest -q tests/test_metrics.py
 - pytest -q tests/test_replicate_segmenter.py
+- pytest -q tests/test_replicate_segmenter.py tests/test_cli.py tests/test_batch.py tests/test_prompts.py
 - pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py
 - pytest -q tests/test_paper_prompt_comparison.py

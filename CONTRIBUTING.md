@@ -18,7 +18,7 @@
 - Benchmark matrix configs: `configs/benchmarks/`.
 - Batch launcher script: `scripts/launch_batch.sh`.
 - Regression tests: `tests/`.
-- Legacy experiment notebooks: root `*.ipynb`.
+- Legacy experiment notebooks: `notebooks/*.ipynb` (plus `ita_fitzpatrick_analysis.ipynb` currently at repo root).
 
 ## Local Validation
 - Full test run: `pytest -q`.
@@ -26,6 +26,7 @@
 - Batch-runner checks: `pytest -q tests/test_batch.py`.
 - Metrics-focused checks: `pytest -q tests/test_metrics.py`.
 - Provider adapter checks: `pytest -q tests/test_replicate_segmenter.py`.
+- Replicate parity checks: `pytest -q tests/test_replicate_segmenter.py tests/test_cli.py tests/test_batch.py tests/test_prompts.py`.
 - Paper/fairness artifact checks: `pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py`.
 
 ## Contribution Rules
@@ -44,6 +45,13 @@
 - Preserve dataset roots and source input files; write outputs to `results/` or configured artifact directories.
 - Generated runtime directories (`results/`, `outputs/`, `artifacts/`) are ignored by default via `.gitignore`.
 - If generated artifacts were tracked historically, untrack them with `git rm -r --cached <path>` instead of deleting local runtime files.
+
+## Replicate Troubleshooting
+- `429 Request was throttled` on create-prediction:
+  - lower concurrency (`--workers 1`) and increase spacing (`--rate-limit 12` or higher),
+  - confirm account payment method/credits are active.
+- `422 Invalid version or not permitted`:
+  - verify the exact `--replicate-model-version` string and model access permissions for the token.
 
 ## Pull Request Checklist
 - Relevant tests pass locally or skipped tests are clearly explained.

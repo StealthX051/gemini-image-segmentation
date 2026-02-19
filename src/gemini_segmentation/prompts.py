@@ -273,6 +273,30 @@ DEFAULT_TARGETS: Dict[str, List[str]] = {
     "histopathology": ["diagnostic tissue"],
 }
 
+REPLICATE_TASK_CONTEXT: Dict[str, str] = {
+    "polyp": "This is a colonoscopy frame.",
+    "derm_lesion": "This is a dermoscopic skin image.",
+    "optic_disc_cup": "This is a retinal fundus image.",
+    "laparoscopy_uterus_tools": "This is a laparoscopic surgical frame.",
+    "busi_mass": "This is a breast ultrasound image.",
+    "lits_liver": "This is an axial abdominal CT slice.",
+    "lits_liver_mass": "This is an axial abdominal CT slice.",
+    "pneumothorax_cxr": "This is a chest radiograph.",
+    "histopathology": "This is a histopathology image.",
+}
+
+REPLICATE_TASK_EXCLUSIONS: Dict[str, str] = {
+    "polyp": "surrounding normal mucosa, specular glare, bubbles/debris, instruments, and text overlays",
+    "derm_lesion": "hairs, ruler marks, color charts, pen marks, specular glare, and text overlays",
+    "optic_disc_cup": "background outside the retina and any text overlays",
+    "laparoscopy_uterus_tools": "smoke/plume, glare not belonging to tissue/tool, and text overlays",
+    "busi_mass": "UI elements, depth markers, calipers, and non-lesion acoustic artifacts",
+    "lits_liver": "non-liver organs, abdominal wall soft tissue, and external overlays",
+    "lits_liver_mass": "normal liver parenchyma, non-hepatic organs, vessels/ducts, and external overlays",
+    "pneumothorax_cxr": "normal lung, mediastinum, bony structures, skin folds, and external overlays",
+    "histopathology": "slide artifacts, pen marks, and background whitespace",
+}
+
 
 def _default_targets(task: str, overrides: Sequence[str] | None = None) -> tuple[str, ...]:
     if overrides:
@@ -283,8 +307,36 @@ def _default_targets(task: str, overrides: Sequence[str] | None = None) -> tuple
     return tuple(DEFAULT_TARGETS[task_key])
 
 
-def _build_replicate_instructions(targets: Sequence[str]) -> Mapping[str, str]:
-    return {label: f"Segment the {label}." for label in targets}
+def _build_replicate_instructions(
+    task: str,
+    family: PromptFamily,
+    targets: Sequence[str],
+) -> Mapping[str, str]:
+    task_key = task.lower()
+    context = REPLICATE_TASK_CONTEXT.get(task_key, "This is a medical image.")
+    exclusions = REPLICATE_TASK_EXCLUSIONS.get(
+        task_key,
+        "non-target anatomy, background, overlays, and imaging artifacts",
+    )
+
+    label_instructions = {label: f"Segment the {label}." for label in targets}
+    if family == PromptFamily.LABEL_V1:
+        return label_instructions
+
+    desc_instructions = {
+        label: (
+            f"{context} Segment the {label}. "
+            "Return a tight mask around only the visible target region."
+        )
+        for label in targets
+    }
+    if family == PromptFamily.DESC_V1:
+        return desc_instructions
+
+    return {
+        label: f"{instruction} Exclude: {exclusions}."
+        for label, instruction in desc_instructions.items()
+    }
 
 
 def build_prompt_for_provider(
@@ -312,7 +364,8 @@ def build_prompt_for_provider(
         return ProviderPrompt(prompt=primary, targets=targets)
 
     if normalized_provider == "replicate":
-        instructions = _build_replicate_instructions(targets)
+        prompt_family = PromptFamily(family)
+        instructions = _build_replicate_instructions(task, prompt_family, targets)
         primary_instruction = instructions.get(targets[0], "") if targets else ""
         return ProviderPrompt(
             prompt=primary_instruction,

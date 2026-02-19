@@ -35,6 +35,7 @@ Top-level keys:
 - `local_cache`, `local_cache_dir`
 - `gemini_explicit_cache`, `gemini_cache_ttl`
 - `thinking_budget`, `temperature` (Gemini-only segment command options; not emitted for Moondream/Replicate jobs)
+- Replicate fields: `replicate_model_version`, `replicate_targets`, `replicate_instructions`, `replicate_cache_dir`
 - `legacy_predictions`
 - `success_threshold`, `bootstrap_method`, `bootstrap_resamples`
 - `manifest`
@@ -75,9 +76,13 @@ Before execution, the runner validates:
 - every dataset root exists and has `images/` + `masks/`,
 - explicit manifests exist when provided,
 - prompt families are non-empty and valid,
+- Replicate jobs define `replicate_model_version`,
+- Replicate `replicate_instructions` are only used when `replicate_targets` are present,
+- Replicate `replicate_targets` and `replicate_instructions` have matching cardinality when both are provided,
 - robotics ER jobs do not use explicit Gemini context cache.
 
 In `--dry-run` mode, provider API key checks are skipped, but filesystem/config checks still run.
+Preflight does not verify provider account credits/billing state or model-version permission scope; Replicate can still fail at runtime with `429` throttling or `422 Invalid version or not permitted`.
 
 ## Execution Lifecycle
 1. Load base config.
@@ -86,13 +91,20 @@ In `--dry-run` mode, provider API key checks are skipped, but filesystem/config 
 4. Build deterministic dataset × model job matrix.
 5. Run strict preflight.
 6. Write `results/batches/<run_id>/resolved_config.json`.
-7. Execute segment commands sequentially (provider-specific assembly: Gemini receives `--thinking-budget`/`--temperature`; Moondream/Replicate do not).
+7. Execute segment commands sequentially (provider-specific assembly: Gemini receives `--thinking-budget`/`--temperature`; Moondream/Replicate do not; Replicate additionally receives `--replicate-model-version`, repeated `--replicate-target`, repeated `--replicate-instruction`, and optional `--replicate-cache-dir`).
 8. Optionally execute fairness commands for discovered prompt-family run directories.
 9. Append per-command status records to `job_status.jsonl`.
 10. Write final `summary.json`.
 
 Default failure mode is continue-on-failure, with non-zero process exit if any job fails.
-During non-dry-run execution, child command output is mirrored to both the terminal and per-job log files for single-terminal monitoring.
+During non-dry-run execution, child command output is mirrored to both the terminal and per-job log files for single-terminal monitoring. For Replicate jobs, fairness run discovery resolves filesystem-safe model directory tokens generated from `replicate_model_version` (and also checks the legacy raw path form for backward compatibility).
+
+## Replicate Runtime Gating Notes
+- For Replicate SA2VA, treat funded account credits/payment method as a run prerequisite.
+- If account-level create-prediction throttling is active, lower concurrency and increase interval in config overrides:
+  - `workers: 1`
+  - `rate_limit: 12` (increase to `15` if throttling persists)
+- Replicate model version IDs must be exact and accessible to the token used for the run.
 
 ## Output Files
 All orchestration metadata for a batch run is stored under:

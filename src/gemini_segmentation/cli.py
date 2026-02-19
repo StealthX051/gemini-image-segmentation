@@ -6,6 +6,7 @@ import logging
 import threading
 import time
 import hashlib
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, Tuple
@@ -65,6 +66,12 @@ def _prompt_key(prompt_family: str | None = None, prompt_hash: str | None = None
     if prompt_family:
         return f"{prompt_family}-{digest}"
     return f"prompt-{digest}"
+
+
+def _safe_model_dir_name(model_name: str) -> str:
+    token = model_name.strip().replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
+    token = re.sub(r"[^A-Za-z0-9_.-]", "_", token)
+    return token or "model"
 
 
 def _prompt_payload(provider: str, prompt_family: str | None, prompt: ProviderPrompt) -> Dict[str, object]:
@@ -423,10 +430,13 @@ def command_segment(args: argparse.Namespace) -> None:
         prompt_key = _prompt_key(prompt_family, prompt_hash)
 
         model_label = (
-            replicate_model_version if run_provider == "replicate" else model_name
+            (replicate_model_version or model_name)
+            if run_provider == "replicate"
+            else model_name
         )
+        model_dir_name = _safe_model_dir_name(model_label)
         paths = _prepare_output_dirs(
-            Path(args.results_dir), args.dataset_name, model_label, prompt_key, run_id
+            Path(args.results_dir), args.dataset_name, model_dir_name, prompt_key, run_id
         )
 
         existing_run_config = {}
@@ -474,17 +484,29 @@ def command_segment(args: argparse.Namespace) -> None:
             else None
         )
 
+        replicate_instruction_sequence = None
+        replicate_instruction_map = None
+        if isinstance(replicate_instructions_arg, dict):
+            replicate_instruction_map = {
+                str(target): str(instruction)
+                for target, instruction in replicate_instructions_arg.items()
+            }
+        elif replicate_instructions_arg:
+            replicate_instruction_sequence = [str(instruction) for instruction in replicate_instructions_arg]
+
         replicate_target_instructions = None
-        if replicate_instructions_arg and replicate_targets_arg:
+        if replicate_instruction_map:
+            replicate_target_instructions = dict(replicate_instruction_map)
+        elif replicate_instruction_sequence and replicate_targets_arg:
             replicate_target_instructions = {
                 target: instruction
-                for target, instruction in zip(replicate_targets_arg, replicate_instructions_arg)
+                for target, instruction in zip(replicate_targets_arg, replicate_instruction_sequence)
             }
 
         if run_provider == "replicate":
-            if replicate_instructions_arg and (
+            if replicate_instruction_sequence and (
                 not replicate_targets_arg
-                or len(replicate_instructions_arg) != len(replicate_targets_arg)
+                or len(replicate_instruction_sequence) != len(replicate_targets_arg)
             ):
                 raise ValueError(
                     "The number of --replicate-instruction flags must match --replicate-target entries."
@@ -526,13 +548,16 @@ def command_segment(args: argparse.Namespace) -> None:
         prompt_key = _prompt_key(prompt_family, prompt_hash)
 
         model_label = (
-            replicate_model_version if run_provider == "replicate" else model_name
+            (replicate_model_version or model_name)
+            if run_provider == "replicate"
+            else model_name
         )
+        model_dir_name = _safe_model_dir_name(model_label)
         current_model_label = paths["run_dir"].parts[-3]
         current_prompt_key = paths["run_dir"].parts[-2]
-        if model_label != current_model_label or prompt_key != current_prompt_key:
+        if model_dir_name != current_model_label or prompt_key != current_prompt_key:
             paths = _prepare_output_dirs(
-                Path(args.results_dir), args.dataset_name, model_label, prompt_key, run_id
+                Path(args.results_dir), args.dataset_name, model_dir_name, prompt_key, run_id
             )
 
         resolved_prompt = provider_prompt.prompt
@@ -738,7 +763,7 @@ def command_segment(args: argparse.Namespace) -> None:
                     legacy_json_path = None
                     raw_response_payload = raw_items or None
                     if args.legacy_predictions:
-                        legacy_dir = dataset_root / f"predictions_{model_label}"
+                        legacy_dir = dataset_root / f"predictions_{model_dir_name}"
                         legacy_json_path = legacy_dir / f"{img_name}.json"
                         _write_legacy_prediction(mask_arrays, legacy_json_path, raw_response_payload)
 

@@ -42,6 +42,8 @@ Repository-level instructions for coding agents working in this project.
 - `src/gemini_segmentation/paper/`: table/figure generation utilities.
 - `configs/`: prompt presets, paper artifact registries, and benchmark matrices.
 - `tests/`: primary regression safety net.
+- `notebooks/`: legacy notebook workflow stages (deprecated for production-code changes).
+- `ita_fitzpatrick_analysis.ipynb`: legacy fairness notebook (currently at repo root).
 
 ## Non-Negotiable Invariants
 - Keep dataset inputs immutable; do not alter source files under dataset roots.

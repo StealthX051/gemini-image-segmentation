@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v3` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity and standardized comparison reporting).
+- `posthoc_v6` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record).
 
 ## Entries
 
@@ -56,6 +56,27 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: hardened cross-provider parity by constraining non-Gemini segment calls to provider-native arguments (Moondream adapter invocation fallbacks; batch command assembly omits Gemini-only sampling controls for Moondream/Replicate), and added standardized post-run model-vs-prompt comparison reporting artifacts.
 - Impact: reduces provider-parameter mismatch risk in Moondream runs, improves reproducible auditability for cross-model prompt-ablation comparisons, and standardizes manuscript-facing summary exports (mean/median IoU-Dice, 95% CIs, success rate) without changing segmentation metric definitions.
 - Code anchors: `src/gemini_segmentation/models.py`, `src/gemini_segmentation/batch.py`, `src/gemini_segmentation/paper/prompt_comparison.py`, `tests/test_moondream_segmenter.py`, `tests/test_batch.py`, `tests/test_paper_prompt_comparison.py`.
+
+### MTH-POSTHOC-007
+- Date: 2026-02-19.
+- Status: active.
+- Summary: completed Replicate/Sa2VA production-parity hardening by adding batch-schema parity fields and strict preflight validation, provider-specific command forwarding, Replicate output-url extraction robustness across API output variants, and prompt-family-specific Replicate instruction shaping (`label_v1`, `desc_v1`, `desc_neg_v1`).
+- Impact: closes batch-orchestration parity gaps for Replicate runs, improves resilience to Replicate output-shape variation, preserves manuscript prompt-ablation semantics for Replicate defaults, and improves resume reproducibility through stronger run-config handling.
+- Code anchors: `src/gemini_segmentation/models.py`, `src/gemini_segmentation/batch.py`, `src/gemini_segmentation/prompts.py`, `src/gemini_segmentation/cli.py`, `tests/test_replicate_segmenter.py`, `tests/test_batch.py`, `tests/test_cli.py`, `tests/test_prompts.py`.
+
+### MTH-POSTHOC-008
+- Date: 2026-02-19.
+- Status: active.
+- Summary: hardened Replicate input serialization by switching SA2VA image input from raw `bytes` to provider-supported upload payloads with a data-URI fallback path, then documented runtime gating caveats discovered during smoke validation (account-credit throttling and strict version-permission checks).
+- Impact: prevents `TypeError: Object of type bytes is not JSON serializable` request failures, preserves provider contract while improving cross-client compatibility, and makes Replicate smoke/full-run prerequisites explicit for reproducible execution planning.
+- Code anchors: `src/gemini_segmentation/models.py`, `tests/test_replicate_segmenter.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_HANDOFF.md`, `docs/BATCH_ORCHESTRATION.md`.
+
+### MTH-POSTHOC-009
+- Date: 2026-02-19.
+- Status: active.
+- Summary: completed Replicate/Sa2VA cross-provider reporting parity by adding explicit Replicate run selection support to the prompt-comparison reporting pipeline (`--replicate-run-id`) and recording successful end-to-end Replicate validation state (smoke + full polyp 3-family batch run) in operational docs.
+- Impact: allows manuscript-style consolidated prompt-comparison reports to include Replicate rows deterministically by run ID, and improves reproducibility handoff by pinning a validated Replicate run and model version in project docs without changing segmentation metric definitions.
+- Code anchors: `src/gemini_segmentation/paper/prompt_comparison.py`, `tests/test_paper_prompt_comparison.py`, `README.md`, `docs/AGENT_HANDOFF.md`, `llms.txt`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

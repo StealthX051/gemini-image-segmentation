@@ -41,10 +41,23 @@ class BuildPromptTests(unittest.TestCase):
         self.assertNotIn("JSON", prompt.prompt)
 
     def test_provider_prompt_for_replicate_uses_instructions(self) -> None:
-        prompt = build_prompt_for_provider("polyp", PromptFamily.DESC_V1, "replicate")
+        prompt = build_prompt_for_provider("polyp", PromptFamily.LABEL_V1, "replicate")
         self.assertIn("colorectal polyp", prompt.instructions)
         self.assertEqual(prompt.prompt, "Segment the colorectal polyp.")
         self.assertNotIn("JSON", prompt.prompt)
+
+    def test_provider_prompt_for_replicate_varies_by_family(self) -> None:
+        label_prompt = build_prompt_for_provider("polyp", PromptFamily.LABEL_V1, "replicate")
+        desc_prompt = build_prompt_for_provider("polyp", PromptFamily.DESC_V1, "replicate")
+        desc_neg_prompt = build_prompt_for_provider("polyp", PromptFamily.DESC_NEG_V1, "replicate")
+
+        label_instruction = label_prompt.instructions["colorectal polyp"]
+        desc_instruction = desc_prompt.instructions["colorectal polyp"]
+        desc_neg_instruction = desc_neg_prompt.instructions["colorectal polyp"]
+
+        self.assertNotEqual(label_instruction, desc_instruction)
+        self.assertTrue(desc_neg_instruction.startswith(desc_instruction))
+        self.assertIn("Exclude:", desc_neg_instruction)
 
 
 if __name__ == "__main__":

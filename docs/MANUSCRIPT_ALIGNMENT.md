@@ -28,6 +28,8 @@ This document keeps implementation changes aligned with:
 - Gemini: receives full JSON-schema prompt text.
 - Moondream: receives object target label(s) (schema text is not sent as the segmentation instruction), using provider-native segment arguments only (no Gemini-style `temperature` / `thinking_budget` controls).
 - Replicate/Sa2VA: receives natural-language instruction(s), optionally per target.
+- Replicate/Sa2VA defaults are family-aware: `label_v1` uses label-only instructions; `desc_v1` adds descriptor context; `desc_neg_v1` appends exclusions-only deltas to `desc_v1`.
+- Replicate/Sa2VA adapter calls must use provider-supported image input formats (file upload or equivalent URI form), not raw JSON `bytes` payloads.
 - Any change to provider shaping should be treated as a methods change and documented here.
 
 ## Caching Contract
@@ -41,6 +43,7 @@ This document keeps implementation changes aligned with:
 - Segmentation runs should use bounded retries for timeout/parse-failure outcomes to reduce one-off malformed-output artifacts.
 - Default CLI behavior uses `max_retries=5` unless intentionally overridden for sensitivity analyses.
 - Mask metrics should normalize multi-channel mask arrays (e.g., RGB PNG labels) to single-channel before IoU/Dice computation.
+- Replicate runs should be configured with explicit per-process throttling when account limits are tight (for example `workers=1`, `rate_limit>=12s` in smoke validation) so provider throttling does not confound method validation.
 
 ## Reproducibility And Reporting
 - Keep `run_config.json` comprehensive for post hoc analyses and manuscript traceability.

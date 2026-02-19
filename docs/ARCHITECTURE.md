@@ -22,10 +22,13 @@
 - Segmenter contract: `segment(image_obj) -> (masks, latency_s, parse_success, timed_out, raw_items)`.
 - Mask contract: `SegmentationMask` stores full-image binary mask plus pixel-space bounding box.
 - Output contract: run artifacts live under `results/<dataset>/<model>/<prompt_key>/<run_id>/`.
+- Replicate pathing note: Replicate model-version identifiers are stored exactly in run config (`replicate_model_version`) and mapped to filesystem-safe `<model>` directory tokens for cross-platform artifact writes.
 - Retry contract: per-image retries are configured by `max_retries` and apply to timeout/parse-failure outcomes.
 - Resume behavior depends on `predictions.jsonl` and per-image artifact regeneration.
 - Batch contract: orchestration outputs live under `results/batches/<run_id>/` with `resolved_config.json`, `job_status.jsonl`, `summary.json`, and per-job logs.
 - Provider-parameter contract: Gemini segment calls may include sampling controls (`thinking_budget`, `temperature`); Moondream/Replicate segment calls omit Gemini-only controls.
+- Replicate input contract: adapter sends image payloads as provider-supported file uploads and falls back to data-URI form if the client rejects file-like serialization; raw `bytes` are never passed directly in JSON request bodies.
+- Replicate batch contract: config-level Replicate fields (`replicate_model_version`, `replicate_targets`, `replicate_instructions`, `replicate_cache_dir`) are resolved into provider-specific CLI flags, and fairness run discovery uses the Replicate output model label (`replicate_model_version`) to match CLI artifact paths.
 
 ## Module Ownership
 - `cli.py`: argument parsing, run orchestration, checkpointing loop.
@@ -47,3 +50,4 @@
 - Large datasets are intentionally externalized; repository code should not assume local copies exist.
 - Notebook workflows are legacy but still relevant for provenance and parity checks.
 - Paper tools expect stable CSV schemas and config-driven registries in `configs/`.
+- Replicate preflight checks token availability but cannot verify billing/credits or model-version permissions ahead of runtime; those can still surface as provider `429`/`422` responses during execution.

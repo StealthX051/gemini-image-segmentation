@@ -31,8 +31,8 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 - **GPU/CPU**: Workloads are CPU-bound by default; the code auto-resizes images to ≤1024 px as in the paper.
 
 ## Repository layout
-- `01_*` … `16_*` notebooks: per-dataset pairs (`environment_and_data_prep` + `genai_segmentation_evaluation`).
-- `ita_fitzpatrick_analysis.ipynb`: fairness/skin-tone analysis built on notebook outputs.
+- `notebooks/`: legacy experiment notebooks (`01_*` … `16_*` dataset pairs plus exploratory notebooks).
+- `ita_fitzpatrick_analysis.ipynb`: legacy fairness/skin-tone analysis notebook (currently at repository root).
 - `configs/`: prompt presets (`prompts.yaml`) used by the CLI.
 - `configs/benchmarks/`: benchmark-matrix configs for unattended orchestration.
 - `src/gemini_segmentation/`: modular Python package powering the CLI (data discovery, IO, Gemini client, metrics, fairness, prompts, and types).
@@ -76,7 +76,7 @@ python -c "import docx; print(docx.__file__)"
 ```
 
 ### Commands
-- `segment`: Run Gemini or Moondream on a dataset without changing source files.
+- `segment`: Run Gemini, Moondream, or Replicate on a dataset without changing source files.
   - Required: `segment <dataset_name> <dataset_root>` (must contain `images/` and `masks/`, plus any existing manifest files).
   - Key options: `--manifest` to target curated lists (e.g., `pilot50_*`) without rewriting `master_imagelist_*`; `--prompt`/`--prompt-file` or `--prompt-preset configs/prompts.yaml --preset-name <name>`; `--model-name`, `--temperature`, `--thinking-budget`, `--timeout`, `--max-retries`, `--workers`, `--rate-limit`, `--sample-size`, `--success-threshold`, `--bootstrap-method` (`bca` or `percentile`) and `--bootstrap-resamples` (default 5000) for summary stats; `--legacy-predictions` (emit notebook-style JSON near the inputs for back-compat); `--dry-run` (list pending images without calling the API).
   - Retry behavior: `--max-retries` defaults to `5` and retries timeout/parse-failure call outcomes.
@@ -85,7 +85,10 @@ python -c "import docx; print(docx.__file__)"
   - Provider selection: `--provider gemini` (default), `--provider moondream`, or `--provider replicate`. For Moondream, pass `--model-name moondream-3` (auto-applied if you keep the default) and optionally `--moondream-target` multiple times to request one API call per object label (otherwise the prompt text is used as the target). Use `--moondream-endpoint` for a local Moondream Station deployment or rely on `MOONDREAM_API_KEY`/`--moondream-api-key` for cloud calls.
   - Model selection: pass the Gemini model ID via `--model-name`. The default is `gemini-2.5-flash`, and you can explicitly target `gemini-2.5-flash-lite` or `gemini-robotics-er-1.5-preview` the same way.
   - Preset caveat: some presets in `configs/prompts.yaml` include a `model` field and can override CLI `--model-name`; avoid those presets when running strict cross-model comparisons.
-  - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version your-org/seg-model:123abc --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
+  - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
+  - Replicate operational caveat (2026-02-19): accounts without payment method/credits can be throttled aggressively (for example, create-prediction `429` with ~`6/min` and burst `1` as observed in validation). For smoke tests on throttled accounts, start with `--workers 1 --rate-limit 12` (increase to `15` if needed).
+  - Replicate version caveat: `--replicate-model-version` must be a valid, accessible version ID. Invalid or inaccessible IDs return `422 Invalid version or not permitted`.
+  - Replicate validation status (2026-02-19): end-to-end SA2VA implementation is validated, including a completed full polyp 3-family batch run (`replicate_sa2va_polyp_full_20260219-162118`) with 1000 predictions per family. See `docs/AGENT_HANDOFF.md` for exact run paths and per-family metrics.
 - `fairness`: Compute ITA/Fitzpatrick statistics from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--manifest] [--sample-size] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`. Defaults fall back to the stored `run_config.json` so fairness matches the originating segmentation subset and bootstrap settings.
 
 ### Benchmark matrix automation
@@ -119,6 +122,12 @@ python -m gemini_segmentation.batch \
 python -m gemini_segmentation.batch \
   --config configs/benchmarks/ablation_robotics_canonical.yaml \
   --auto-fairness
+
+# Replicate/Sa2VA batch using local override config
+python -m gemini_segmentation.batch \
+  --config configs/benchmarks/ablation_robotics_canonical.yaml \
+  --overrides configs/benchmarks/replicate_sa2va_polyp.local.yaml \
+  --run-id replicate_sa2va_polyp_full_20260219-162118
 ```
 
 PowerShell convenience run (full polyp 3x3 with live monitor):
@@ -164,6 +173,8 @@ results/<dataset>/<model>/<run_id>/
 - **Resume behavior**: If `predictions.jsonl` exists, the CLI rehydrates prior metrics/masks/overlays before processing remaining images. Writes are atomic per image to avoid corruption on interruption.
 - **Legacy parity**: `--legacy-predictions` writes the notebook-style JSON (including bounding boxes and base64 masks) under `predictions_<model>/` near the dataset, matching the original consumers. Raw payloads are also saved under `raw_responses/` for byte-for-byte reproduction.
 - **Replicate cost/latency**: Replicate provider calls incur the model’s metered costs and add mask-download latency. Use `--replicate-cache-dir <path>` to cache downloaded masks and skip re-fetching them when resuming or rerunning a job.
+- **Replicate model path token**: Replicate model-version strings are normalized into a filesystem-safe model directory token under `results/<dataset>/<model>/...` while the exact model version remains recorded in `run_config.json` (`replicate_model_version`).
+- **Replicate billing gate**: low/zero-credit Replicate accounts can block or heavily throttle smoke/full runs. Treat account funding/credits as an execution prerequisite for Replicate validation.
 
 ### Data flow
 1. **Inputs** stay in place (no path changes): the CLI reads the same `images/`, `masks/`, and manifest text files the notebooks expect.
@@ -189,7 +200,7 @@ results/<dataset>/<model>/<run_id>/
 - **Provider-specific construction:**
   - **Gemini** receives the full JSON-schema prompt (keys `box_2d`, `mask`, `label`) built via the selected family.
   - **Moondream** ignores the JSON schema; it receives the target label(s) as the `object` string(s). Use `--moondream-target` overrides for multi-target tasks; otherwise the preset label(s) are sent. The adapter does not pass Gemini-style `temperature`/`thinking_budget` controls to Moondream segment calls.
-  - **Replicate/Sa2VA** expects natural-language instructions rather than schemas. Each target gets a concise instruction like `Segment the optic disc.`; overrides can be provided with `--replicate-instruction` to align custom wording per label.
+  - **Replicate/Sa2VA** expects natural-language instructions rather than schemas. Defaults are prompt-family aware (`label_v1` label-only, `desc_v1` descriptor-enriched, `desc_neg_v1` descriptor plus exclusions). Overrides can be provided with `--replicate-instruction` to align custom wording per label.
 - **Caching/resume:** Cache keys include provider, prompt family, and a hash of the provider-specific payload to avoid collisions between JSON-schema prompts (Gemini) and object/instruction strings (Moondream/Replicate).
 
 ### Fairness analysis
@@ -201,7 +212,7 @@ results/<dataset>/<model>/<run_id>/
 - **Tables/Figure placeholders:** `python -m gemini_segmentation.paper.make_all --results <path/to/long_form_results.csv>` (Parquet is also supported). The YAML registry in `configs/paper.yaml` documents required columns (task/model/prompt_strategy/iou/dice/success), display labels, and specifications for each table/figure. Artifacts land in `artifacts/` by default with `tables/*.csv|html|docx` and `figures/*.png|pdf`; override with `--artifacts` for CI.
 - **Figure 1 best cases:** `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml` selects the highest-IoU image per configured dataset/target (persisting selection to `artifacts/figures/figure1_best_cases/selection.yaml`) and renders the montage to PDF/PNG in the same directory.
 - **Fairness Figure 2 + Table 4:** `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>` consumes the ITA fairness CSVs from a completed run and emits the four-panel plot plus Table 4 to `artifacts/fairness/` (paths are configurable via `--output-dir`).
-- **Prompt-family comparison report (Markdown/HTML/PDF):** `python -m gemini_segmentation.paper.prompt_comparison --dataset polyp` reads completed run summaries and emits grouped model sections plus a consolidated PDF mega table with publication-style model/prompt labels. Rows include mean IoU/Dice (95% CI), median IoU/Dice, and success rate in `.md`, `.html`, `.pdf`, and `.csv` under `results/reports/`. Override run selection with `--gemini-run-id` / `--moondream-run-id` when needed.
+- **Prompt-family comparison report (Markdown/HTML/PDF):** `python -m gemini_segmentation.paper.prompt_comparison --dataset polyp` reads completed run summaries and emits grouped model sections plus a consolidated PDF mega table with publication-style model/prompt labels. Rows include mean IoU/Dice (95% CI), median IoU/Dice, and success rate in `.md`, `.html`, `.pdf`, and `.csv` under `results/reports/`. Override run selection with `--gemini-run-id` / `--moondream-run-id` / `--replicate-run-id` when needed.
 
 ## Extending the project
 - **New datasets**: Add discovery helpers or manifest builders in `src/gemini_segmentation/data.py` if layout differs; keep `images/`/`masks/` naming stable to reuse the CLI.
@@ -210,7 +221,7 @@ results/<dataset>/<model>/<run_id>/
 - **Fairness variations**: Modify `src/gemini_segmentation/fairness.py` to add new groupings or filters; outputs will land under the run’s `fairness/` directory.
 
 ## Key files to read
-- **Notebook starters**: the first cell of any `NN_*_environment_and_data_prep.ipynb` for dataset discovery and segmentation helpers.
+- **Notebook starters**: the first cell of any `notebooks/NN_*_environment_and_data_prep*.ipynb` for dataset discovery and segmentation helpers.
 - **CLI entrypoint**: `src/gemini_segmentation/cli.py` (commands, arguments, workflow wiring).
 - **Batch entrypoint**: `src/gemini_segmentation/batch.py` (matrix orchestration, strict preflight, status logs).
 - **Gemini client + parsing**: `src/gemini_segmentation/models.py` and `src/gemini_segmentation/io.py` (request construction, response parsing, mask decoding, legacy exports).

@@ -44,10 +44,20 @@ class BatchJob:
     success_threshold: float
     bootstrap_method: str
     bootstrap_resamples: int
+    replicate_model_version: Optional[str] = None
+    replicate_targets: Optional[tuple[str, ...]] = None
+    replicate_instructions: Optional[tuple[str, ...]] = None
+    replicate_cache_dir: Optional[Path] = None
 
     @property
     def job_id(self) -> str:
         return f"{self.dataset_name}__{self.model_name}"
+
+    @property
+    def output_model_name(self) -> str:
+        if self.provider == "replicate" and self.replicate_model_version:
+            return self.replicate_model_version
+        return self.model_name
 
 
 def _timestamp() -> str:
@@ -61,6 +71,14 @@ def _iso_now() -> str:
 def _sanitize_token(value: str) -> str:
     token = value.strip().replace("/", "_").replace(":", "_").replace(" ", "_")
     return re.sub(r"[^A-Za-z0-9_.-]", "_", token)
+
+
+def _model_dir_candidates(model_name: str) -> List[str]:
+    safe = _sanitize_token(model_name)
+    candidates = [safe]
+    if model_name not in candidates:
+        candidates.append(model_name)
+    return candidates
 
 
 def _deep_merge(base: Any, override: Any) -> Any:
@@ -132,6 +150,21 @@ def _resolve_prompt_families(candidates: Optional[Iterable[str]]) -> tuple[str, 
             f"Invalid prompt family values: {invalid}. Valid values: {sorted(VALID_PROMPT_FAMILIES)}"
         )
     return families
+
+
+def _coerce_optional_string_sequence(value: Any, *, field_name: str) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if isinstance(value, str) or not isinstance(value, (list, tuple)):
+        raise ValueError(f"{field_name} must be a list of strings when provided.")
+    normalized: List[str] = []
+    for item in value:
+        expanded = _expand_env_placeholders(item) if isinstance(item, str) else item
+        token = str(expanded).strip()
+        if not token:
+            raise ValueError(f"{field_name} entries must be non-empty strings.")
+        normalized.append(token)
+    return tuple(normalized)
 
 
 def build_jobs(
@@ -220,6 +253,43 @@ def build_jobs(
             if provider == "gemini" and "robotics-er" in model_name:
                 gemini_explicit_cache = False
 
+            replicate_model_version = None
+            replicate_cache_dir = None
+            replicate_targets = None
+            replicate_instructions = None
+            if provider == "replicate":
+                replicate_model_version_value = model.get(
+                    "replicate_model_version",
+                    dataset.get("replicate_model_version", defaults.get("replicate_model_version")),
+                )
+                if replicate_model_version_value is not None:
+                    expanded_model_version = _expand_env_placeholders(replicate_model_version_value)
+                    replicate_model_version = str(expanded_model_version).strip() or None
+
+                replicate_targets = _coerce_optional_string_sequence(
+                    model.get(
+                        "replicate_targets",
+                        dataset.get("replicate_targets", defaults.get("replicate_targets")),
+                    ),
+                    field_name="replicate_targets",
+                )
+                replicate_instructions = _coerce_optional_string_sequence(
+                    model.get(
+                        "replicate_instructions",
+                        dataset.get("replicate_instructions", defaults.get("replicate_instructions")),
+                    ),
+                    field_name="replicate_instructions",
+                )
+                replicate_cache_dir_value = model.get(
+                    "replicate_cache_dir",
+                    dataset.get("replicate_cache_dir", defaults.get("replicate_cache_dir")),
+                )
+                if replicate_cache_dir_value is not None:
+                    expanded_cache_dir = _expand_env_placeholders(replicate_cache_dir_value)
+                    expanded_cache_dir_str = str(expanded_cache_dir).strip()
+                    if expanded_cache_dir_str:
+                        replicate_cache_dir = Path(expanded_cache_dir_str).expanduser()
+
             job = BatchJob(
                 dataset_name=dataset_name,
                 dataset_root=dataset_root,
@@ -278,6 +348,10 @@ def build_jobs(
                         dataset.get("bootstrap_resamples", defaults.get("bootstrap_resamples", 5000)),
                     )
                 ),
+                replicate_model_version=replicate_model_version,
+                replicate_targets=replicate_targets,
+                replicate_instructions=replicate_instructions,
+                replicate_cache_dir=replicate_cache_dir,
             )
             jobs.append(job)
 
@@ -321,6 +395,23 @@ def preflight_jobs(jobs: Iterable[BatchJob], *, skip_env_checks: bool = False) -
             raise ValueError(
                 f"Robotics ER job {job.job_id} must disable explicit Gemini cache."
             )
+        if job.provider == "replicate":
+            if not job.replicate_model_version:
+                raise ValueError(
+                    f"Replicate job {job.job_id} must define replicate_model_version."
+                )
+            if job.replicate_instructions and not job.replicate_targets:
+                raise ValueError(
+                    f"Replicate job {job.job_id} cannot define replicate_instructions without replicate_targets."
+                )
+            if (
+                job.replicate_targets
+                and job.replicate_instructions
+                and len(job.replicate_targets) != len(job.replicate_instructions)
+            ):
+                raise ValueError(
+                    f"Replicate job {job.job_id} has mismatched replicate_targets/replicate_instructions lengths."
+                )
 
 
 def build_segment_command(job: BatchJob, *, run_id: str, results_dir: Path) -> List[str]:
@@ -367,6 +458,17 @@ def build_segment_command(job: BatchJob, *, run_id: str, results_dir: Path) -> L
         else:
             cmd.append("--no-gemini-explicit-cache")
         cmd.extend(["--gemini-cache-ttl", str(job.gemini_cache_ttl)])
+    if job.provider == "replicate":
+        if job.replicate_model_version:
+            cmd.extend(["--replicate-model-version", job.replicate_model_version])
+        if job.replicate_targets:
+            for target in job.replicate_targets:
+                cmd.extend(["--replicate-target", target])
+        if job.replicate_instructions:
+            for instruction in job.replicate_instructions:
+                cmd.extend(["--replicate-instruction", instruction])
+        if job.replicate_cache_dir:
+            cmd.extend(["--replicate-cache-dir", str(job.replicate_cache_dir)])
     return cmd
 
 
@@ -392,16 +494,20 @@ def discover_prompt_run_dirs(
     model_name: str,
     run_id: str,
 ) -> List[Path]:
-    model_dir = results_dir / dataset_name / model_name
-    if not model_dir.is_dir():
-        return []
     run_dirs: List[Path] = []
-    for prompt_dir in sorted(model_dir.iterdir()):
-        if not prompt_dir.is_dir():
+    seen: set[str] = set()
+    for candidate_model_name in _model_dir_candidates(model_name):
+        model_dir = results_dir / dataset_name / candidate_model_name
+        if not model_dir.is_dir():
             continue
-        candidate = prompt_dir / run_id
-        if candidate.is_dir():
-            run_dirs.append(candidate)
+        for prompt_dir in sorted(model_dir.iterdir()):
+            if not prompt_dir.is_dir():
+                continue
+            candidate = prompt_dir / run_id
+            candidate_key = str(candidate)
+            if candidate.is_dir() and candidate_key not in seen:
+                seen.add(candidate_key)
+                run_dirs.append(candidate)
     return run_dirs
 
 
@@ -473,7 +579,17 @@ def run_batch(args: argparse.Namespace) -> int:
         "auto_fairness": bool(args.auto_fairness),
         "stop_on_failure": bool(args.stop_on_failure),
         "dry_run": bool(args.dry_run),
-        "jobs": [asdict(job) | {"dataset_root": str(job.dataset_root), "local_cache_dir": str(job.local_cache_dir)} for job in jobs],
+        "jobs": [
+            asdict(job)
+            | {
+                "dataset_root": str(job.dataset_root),
+                "local_cache_dir": str(job.local_cache_dir),
+                "replicate_cache_dir": str(job.replicate_cache_dir)
+                if job.replicate_cache_dir
+                else None,
+            }
+            for job in jobs
+        ],
     }
     _write_json(resolved_path, resolved_payload)
 
@@ -559,7 +675,7 @@ def run_batch(args: argparse.Namespace) -> int:
         run_dirs = discover_prompt_run_dirs(
             results_dir=results_dir,
             dataset_name=job.dataset_name,
-            model_name=job.model_name,
+            model_name=job.output_model_name,
             run_id=run_id,
         )
         if not run_dirs:
