@@ -173,6 +173,39 @@ def test_build_segment_command_includes_required_flags(tmp_path) -> None:
     assert cmd.count("--prompt-family") == 3
 
 
+def test_build_segment_command_for_moondream_omits_gemini_sampling_flags(tmp_path) -> None:
+    job = batch.BatchJob(
+        dataset_name="polyp",
+        dataset_root=tmp_path / "dataset",
+        model_name="moondream-3",
+        provider="moondream",
+        prompt_families=("label_v1", "desc_v1", "desc_neg_v1"),
+        manifest=None,
+        timeout=60.0,
+        max_retries=5,
+        workers=4,
+        sample_size=None,
+        rate_limit=0.5,
+        local_cache=True,
+        local_cache_dir=Path("results/.request_cache"),
+        gemini_explicit_cache=True,
+        gemini_cache_ttl=3600,
+        thinking_budget=0,
+        temperature=0.5,
+        legacy_predictions=False,
+        success_threshold=0.5,
+        bootstrap_method="bca",
+        bootstrap_resamples=5000,
+    )
+    cmd = batch.build_segment_command(job, run_id="batch-run", results_dir=tmp_path / "results")
+
+    assert "--provider" in cmd and "moondream" in cmd
+    assert "--thinking-budget" not in cmd
+    assert "--temperature" not in cmd
+    assert "--max-retries" in cmd and "5" in cmd
+    assert cmd.count("--prompt-family") == 3
+
+
 def test_run_batch_continues_on_failure_and_returns_nonzero(tmp_path, monkeypatch) -> None:
     dataset_root = tmp_path / "dataset"
     _make_dataset_root(dataset_root)

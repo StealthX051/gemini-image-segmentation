@@ -340,8 +340,9 @@ def build_segment_command(job: BatchJob, *, run_id: str, results_dir: Path) -> L
         cmd.extend(["--manifest", str(job.manifest)])
     for family in job.prompt_families:
         cmd.extend(["--prompt-family", family])
-    cmd.extend(["--thinking-budget", str(job.thinking_budget)])
-    cmd.extend(["--temperature", str(job.temperature)])
+    if job.provider == "gemini":
+        cmd.extend(["--thinking-budget", str(job.thinking_budget)])
+        cmd.extend(["--temperature", str(job.temperature)])
     cmd.extend(["--timeout", str(job.timeout)])
     cmd.extend(["--max-retries", str(job.max_retries)])
     cmd.extend(["--workers", str(job.workers)])
@@ -424,10 +425,25 @@ def _run_command(cmd: List[str], log_path: Path) -> tuple[int, float, str, str]:
         handle.write(f"started_at: {started_at}\n")
         handle.write(f"command: {' '.join(cmd)}\n\n")
         handle.flush()
-        result = subprocess.run(cmd, stdout=handle, stderr=subprocess.STDOUT, check=False)
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+        )
+        if process.stdout is not None:
+            for line in process.stdout:
+                handle.write(line)
+                handle.flush()
+                print(line, end="", flush=True)
+            process.stdout.close()
+        return_code = process.wait()
     duration_s = time.monotonic() - start
     finished_at = _iso_now()
-    return result.returncode, duration_s, started_at, finished_at
+    return return_code, duration_s, started_at, finished_at
 
 
 def run_batch(args: argparse.Namespace) -> int:
@@ -504,7 +520,15 @@ def run_batch(args: argparse.Namespace) -> int:
         segment_log = logs_dir / (
             f"{index:03d}_segment_{_sanitize_token(job.dataset_name)}__{_sanitize_token(job.model_name)}.log"
         )
+        print(
+            f"[{_iso_now()}] Starting segment job {index}/{len(jobs)}: {job.job_id} (log: {segment_log})",
+            flush=True,
+        )
         exit_code, duration_s, job_started, job_finished = _run_command(segment_cmd, segment_log)
+        print(
+            f"[{_iso_now()}] Finished segment job {job.job_id} with exit_code={exit_code} in {duration_s:.3f}s",
+            flush=True,
+        )
         executed_segment_jobs += 1
         record = {
             "phase": "segment",
@@ -566,9 +590,17 @@ def run_batch(args: argparse.Namespace) -> int:
                 f"{_sanitize_token(job.dataset_name)}__{_sanitize_token(job.model_name)}__"
                 f"{_sanitize_token(run_dir.parent.name)}.log"
             )
+            print(
+                f"[{_iso_now()}] Starting fairness job {job.job_id} prompt={run_dir.parent.name} (log: {fairness_log})",
+                flush=True,
+            )
             fair_exit, fair_duration, fair_started, fair_finished = _run_command(
                 fairness_cmd,
                 fairness_log,
+            )
+            print(
+                f"[{_iso_now()}] Finished fairness job {job.job_id} prompt={run_dir.parent.name} exit_code={fair_exit} in {fair_duration:.3f}s",
+                flush=True,
             )
             executed_fairness_jobs += 1
             fair_record = {

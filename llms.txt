@@ -21,6 +21,7 @@ Primary code entrypoints:
 - src/gemini_segmentation/fairness.py
 - src/gemini_segmentation/prompts.py
 - src/gemini_segmentation/batch.py
+- src/gemini_segmentation/paper/prompt_comparison.py
 
 Core config files:
 - configs/prompts.yaml
@@ -37,11 +38,14 @@ Main commands:
 - python -m gemini_segmentation.paper.make_all --results <path/to/results.csv_or.parquet>
 - python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml
 - python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>
+- python -m gemini_segmentation.paper.prompt_comparison --dataset polyp [--gemini-run-id <id>] [--moondream-run-id <id>]
 
 Primary test targets:
 - pytest -q
 - pytest -q tests/test_cli.py tests/test_prompts.py
 - pytest -q tests/test_batch.py
+- pytest -q tests/test_moondream_segmenter.py
 - pytest -q tests/test_metrics.py
 - pytest -q tests/test_replicate_segmenter.py
 - pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py
+- pytest -q tests/test_paper_prompt_comparison.py

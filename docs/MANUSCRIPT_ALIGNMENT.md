@@ -26,7 +26,7 @@ This document keeps implementation changes aligned with:
 
 ## Provider-Aware Prompt Shaping Contract
 - Gemini: receives full JSON-schema prompt text.
-- Moondream: receives object target label(s) (schema text is not sent as the segmentation instruction).
+- Moondream: receives object target label(s) (schema text is not sent as the segmentation instruction), using provider-native segment arguments only (no Gemini-style `temperature` / `thinking_budget` controls).
 - Replicate/Sa2VA: receives natural-language instruction(s), optionally per target.
 - Any change to provider shaping should be treated as a methods change and documented here.
 
@@ -48,6 +48,7 @@ This document keeps implementation changes aligned with:
 - Matrix orchestration runs should record resolved benchmark configuration and execution status under `results/batches/<run_id>/` (`resolved_config.json`, `job_status.jsonl`, `summary.json`) so multi-model ablation batches are auditable.
 - Recommended run-id policy for matrix studies is `<study_id>_<YYYYMMDD-HHMMSS>`; reuse the same run-id only when explicitly resuming the same study settings.
 - Matrix configs should define the full three-family ablation (`label_v1`, `desc_v1`, `desc_neg_v1`) per job unless a sensitivity analysis explicitly narrows scope.
+- Comparative reporting can be generated post-run via `python -m gemini_segmentation.paper.prompt_comparison` (grouped per model and per prompt family; includes mean/median IoU-Dice, 95% CIs, and success rate) without altering segmentation outputs.
 - When method semantics change, update `src/gemini_segmentation/prompts.py`.
 - When method semantics change, update `configs/prompts.yaml`.
 - When method semantics change, update relevant tests in `tests/test_prompts.py` and `tests/test_cli.py`.

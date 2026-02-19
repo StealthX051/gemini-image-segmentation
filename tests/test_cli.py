@@ -496,6 +496,214 @@ class PromptHashTests(TestCase):
         self.assertNotEqual(_prompt_hash(payload_gemini), _prompt_hash(payload_moondream))
 
 
+class MoondreamCommandSegmentTests(TestCase):
+    @mock.patch(
+        "gemini_segmentation.cli._resolve_provider_prompt",
+        return_value=ProviderPrompt(prompt="lesion", targets=("lesion",)),
+    )
+    @mock.patch("gemini_segmentation.cli.dump_run_config")
+    @mock.patch("gemini_segmentation.cli.build_run_config")
+    @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
+    @mock.patch("gemini_segmentation.cli.load_existing_predictions", return_value={})
+    @mock.patch("gemini_segmentation.cli.paired_masks", return_value=[])
+    @mock.patch("gemini_segmentation.cli.sample_images", return_value=[])
+    @mock.patch("gemini_segmentation.cli.read_manifest", return_value=[])
+    @mock.patch("gemini_segmentation.cli._prepare_output_dirs")
+    @mock.patch("gemini_segmentation.cli.discover_dataset")
+    def test_moondream_provider_maps_default_model_and_preserves_cli_targets(
+        self,
+        mock_discover,
+        mock_prepare_dirs,
+        _mock_read_manifest,
+        _mock_sample_images,
+        _mock_paired_masks,
+        _mock_load_existing_predictions,
+        _mock_load_metrics,
+        mock_build_run_config,
+        _mock_dump_run_config,
+        mock_resolve_provider_prompt,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dataset_root = Path(tmp_dir)
+            manifest_path = dataset_root / "manifest.txt"
+            masks_dir = dataset_root / "masks"
+            mock_discover.return_value = SimpleNamespace(
+                manifest_path=manifest_path, masks_dir=masks_dir
+            )
+            run_dir = (
+                Path(tmp_dir) / "results" / "polyp" / "moondream-3" / "label_v1-1234abcd" / "run"
+            )
+            mock_prepare_dirs.return_value = {
+                "run_dir": run_dir,
+                "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+
+            args = argparse.Namespace(
+                command="segment",
+                dataset_name="polyp",
+                dataset_root=str(dataset_root),
+                manifest=None,
+                provider="moondream",
+                model_name="gemini-2.5-flash",
+                prompt="",
+                prompt_file=None,
+                prompt_preset=None,
+                preset_name="default",
+                preset_branch=None,
+                moondream_targets=["lesion"],
+                moondream_endpoint=None,
+                moondream_api_key=None,
+                thinking_budget=0,
+                temperature=0.5,
+                timeout=1.0,
+                max_retries=5,
+                workers=1,
+                sample_size=None,
+                results_dir=tmp_dir,
+                run_id="run",
+                rate_limit=None,
+                legacy_predictions=False,
+                success_threshold=0.5,
+                bootstrap_method="bca",
+                bootstrap_resamples=5000,
+                dry_run=True,
+                replicate_model_version=None,
+                replicate_targets=None,
+                replicate_instructions=None,
+                replicate_cache_dir=None,
+                prompt_family="label_v1",
+                local_cache=True,
+                local_cache_dir=None,
+                gemini_explicit_cache=True,
+                gemini_cache_ttl=3600,
+            )
+
+            command_segment(args)
+
+        kwargs = mock_build_run_config.call_args.kwargs
+        self.assertEqual(kwargs["provider"], "moondream")
+        self.assertEqual(kwargs["model_name"], "moondream-3")
+        self.assertEqual(kwargs["moondream_targets"], ["lesion"])
+        mock_resolve_provider_prompt.assert_any_call(
+            provider="moondream",
+            prompt_family="label_v1",
+            explicit_prompt=None,
+            prompt_task="polyp",
+            target_overrides=["lesion"],
+            replicate_instruction_overrides=None,
+        )
+
+    @mock.patch(
+        "gemini_segmentation.cli._resolve_provider_prompt",
+        return_value=ProviderPrompt(prompt="optic disc", targets=("optic disc", "optic cup")),
+    )
+    @mock.patch("gemini_segmentation.cli.dump_run_config")
+    @mock.patch("gemini_segmentation.cli.build_run_config")
+    @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
+    @mock.patch("gemini_segmentation.cli.load_existing_predictions", return_value={})
+    @mock.patch("gemini_segmentation.cli.paired_masks", return_value=[])
+    @mock.patch("gemini_segmentation.cli.sample_images", return_value=[])
+    @mock.patch("gemini_segmentation.cli.read_manifest", return_value=[])
+    @mock.patch("gemini_segmentation.cli._prepare_output_dirs")
+    @mock.patch("gemini_segmentation.cli.discover_dataset")
+    def test_moondream_targets_default_from_provider_prompt_when_not_passed(
+        self,
+        mock_discover,
+        mock_prepare_dirs,
+        _mock_read_manifest,
+        _mock_sample_images,
+        _mock_paired_masks,
+        _mock_load_existing_predictions,
+        _mock_load_metrics,
+        mock_build_run_config,
+        _mock_dump_run_config,
+        mock_resolve_provider_prompt,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dataset_root = Path(tmp_dir)
+            manifest_path = dataset_root / "manifest.txt"
+            masks_dir = dataset_root / "masks"
+            mock_discover.return_value = SimpleNamespace(
+                manifest_path=manifest_path, masks_dir=masks_dir
+            )
+            run_dir = (
+                Path(tmp_dir) / "results" / "polyp" / "moondream-3" / "label_v1-1234abcd" / "run"
+            )
+            mock_prepare_dirs.return_value = {
+                "run_dir": run_dir,
+                "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+
+            args = argparse.Namespace(
+                command="segment",
+                dataset_name="polyp",
+                dataset_root=str(dataset_root),
+                manifest=None,
+                provider="moondream",
+                model_name="gemini-2.5-flash",
+                prompt="",
+                prompt_file=None,
+                prompt_preset=None,
+                preset_name="default",
+                preset_branch=None,
+                moondream_targets=None,
+                moondream_endpoint=None,
+                moondream_api_key=None,
+                thinking_budget=0,
+                temperature=0.5,
+                timeout=1.0,
+                max_retries=5,
+                workers=1,
+                sample_size=None,
+                results_dir=tmp_dir,
+                run_id="run",
+                rate_limit=None,
+                legacy_predictions=False,
+                success_threshold=0.5,
+                bootstrap_method="bca",
+                bootstrap_resamples=5000,
+                dry_run=True,
+                replicate_model_version=None,
+                replicate_targets=None,
+                replicate_instructions=None,
+                replicate_cache_dir=None,
+                prompt_family="label_v1",
+                local_cache=True,
+                local_cache_dir=None,
+                gemini_explicit_cache=True,
+                gemini_cache_ttl=3600,
+            )
+
+            command_segment(args)
+
+        kwargs = mock_build_run_config.call_args.kwargs
+        self.assertEqual(kwargs["provider"], "moondream")
+        self.assertEqual(kwargs["model_name"], "moondream-3")
+        self.assertEqual(kwargs["moondream_targets"], ["optic disc", "optic cup"])
+        mock_resolve_provider_prompt.assert_any_call(
+            provider="moondream",
+            prompt_family="label_v1",
+            explicit_prompt=None,
+            prompt_task="polyp",
+            target_overrides=None,
+            replicate_instruction_overrides=None,
+        )
+
+
 class ProviderPromptResolutionTests(TestCase):
     @mock.patch(
         "gemini_segmentation.cli.build_prompt_for_provider",

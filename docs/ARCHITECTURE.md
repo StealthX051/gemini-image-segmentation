@@ -8,7 +8,7 @@
 5. Responses are parsed into normalized masks and persisted (`src/gemini_segmentation/io.py`).
 6. IoU/Dice/summary metrics are updated incrementally (`src/gemini_segmentation/metrics.py`) with single-channel normalization for RGB/RGBA mask inputs.
 7. Optional fairness analysis consumes saved masks/metrics (`src/gemini_segmentation/fairness.py`).
-8. Optional batch orchestration composes multiple `segment`/`fairness` CLI calls from config matrices (`src/gemini_segmentation/batch.py`).
+8. Optional batch orchestration composes multiple `segment`/`fairness` CLI calls from config matrices (`src/gemini_segmentation/batch.py`) and mirrors child command output to terminal + per-job logs.
 
 ## Manuscript Alignment
 - See `docs/MANUSCRIPT_ALIGNMENT.md` for method-level constraints that tie implementation to manuscript and post hoc extensions.
@@ -25,6 +25,7 @@
 - Retry contract: per-image retries are configured by `max_retries` and apply to timeout/parse-failure outcomes.
 - Resume behavior depends on `predictions.jsonl` and per-image artifact regeneration.
 - Batch contract: orchestration outputs live under `results/batches/<run_id>/` with `resolved_config.json`, `job_status.jsonl`, `summary.json`, and per-job logs.
+- Provider-parameter contract: Gemini segment calls may include sampling controls (`thinking_budget`, `temperature`); Moondream/Replicate segment calls omit Gemini-only controls.
 
 ## Module Ownership
 - `cli.py`: argument parsing, run orchestration, checkpointing loop.

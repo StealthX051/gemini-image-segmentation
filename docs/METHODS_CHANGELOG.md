@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v2` (provider expansion + prompt ablation families + caching/retry robustness hardening).
+- `posthoc_v3` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity and standardized comparison reporting).
 
 ## Entries
 
@@ -49,6 +49,13 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: standardized reproducible benchmark orchestration with a config-driven batch runner for prompt-ablation matrices and robotics ER benchmarking, including strict preflight checks, deterministic command assembly, and run-level status artifacts.
 - Impact: improves unattended execution reproducibility and auditability across dataset/model matrices without changing prompt semantics, provider contracts, or metric definitions.
 - Code anchors: `src/gemini_segmentation/batch.py`, `configs/benchmarks/ablation_robotics_canonical.yaml`, `scripts/launch_batch.sh`, `tests/test_batch.py`, `docs/BATCH_ORCHESTRATION.md`.
+
+### MTH-POSTHOC-006
+- Date: 2026-02-19.
+- Status: active.
+- Summary: hardened cross-provider parity by constraining non-Gemini segment calls to provider-native arguments (Moondream adapter invocation fallbacks; batch command assembly omits Gemini-only sampling controls for Moondream/Replicate), and added standardized post-run model-vs-prompt comparison reporting artifacts.
+- Impact: reduces provider-parameter mismatch risk in Moondream runs, improves reproducible auditability for cross-model prompt-ablation comparisons, and standardizes manuscript-facing summary exports (mean/median IoU-Dice, 95% CIs, success rate) without changing segmentation metric definitions.
+- Code anchors: `src/gemini_segmentation/models.py`, `src/gemini_segmentation/batch.py`, `src/gemini_segmentation/paper/prompt_comparison.py`, `tests/test_moondream_segmenter.py`, `tests/test_batch.py`, `tests/test_paper_prompt_comparison.py`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

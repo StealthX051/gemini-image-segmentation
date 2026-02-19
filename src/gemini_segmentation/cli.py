@@ -395,7 +395,7 @@ def command_segment(args: argparse.Namespace) -> None:
     base_gemini_cache_ttl = gemini_cache_ttl
     base_max_retries = int(getattr(args, "max_retries", 5))
 
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     for prompt_family, explicit_prompt in prompt_runs:
         local_cache_enabled = base_local_cache_enabled
@@ -649,6 +649,19 @@ def command_segment(args: argparse.Namespace) -> None:
         cache_misses = 0
         cache_targets = tuple(provider_prompt.targets) if provider_prompt.targets else None
         futures = {}
+        total_pending = len(pending_pairs)
+        heartbeat_s = 30.0
+        if total_pending:
+            logging.info(
+                "Starting %s pending images for %s (provider=%s, model=%s, workers=%s, max_retries=%s, rate_limit_s=%s)",
+                total_pending,
+                prompt_key,
+                run_provider,
+                model_label,
+                args.workers,
+                max_retries,
+                args.rate_limit,
+            )
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             for img_path, gt_mask_path in pending_pairs:
                 futures[
@@ -670,63 +683,100 @@ def command_segment(args: argparse.Namespace) -> None:
                     )
                 ] = (img_path, gt_mask_path)
 
-            for future in as_completed(futures):
-                img_path, gt_mask_path = futures[future]
-                img_name, masks, latency, parse_success, timed_out, raw_items, from_cache = future.result()
-                if from_cache:
-                    cache_hits += 1
-                else:
-                    cache_misses += 1
-                mask_arrays = [m.mask for m in masks]
-                mask_save_path = paths["masks"] / img_name
-                gt_array = np.array(Image.open(gt_mask_path))
-                combined_mask = combine_masks(mask_arrays) if mask_arrays else np.zeros_like(gt_array)
-                save_mask_png(combined_mask, mask_save_path)
-
-                overlay_path = paths["overlays"] / img_name
-                overlay = plot_segmentation_masks(Image.open(img_path), masks)
-                overlay.save(overlay_path)
-
-                iou, dice, success = compute_metrics_for_masks(
-                    gt_array, mask_arrays, success_threshold=args.success_threshold
+            completed = 0
+            pending_futures = set(futures.keys())
+            while pending_futures:
+                done, pending_futures = wait(
+                    pending_futures, timeout=heartbeat_s, return_when=FIRST_COMPLETED
                 )
-                metrics_map = upsert_metrics(
-                    metrics_map,
-                    PerImageMetrics(image_name=img_name, iou=iou, dice=dice, success=success),
-                    metrics_path=paths["metrics"],
-                    summary_path=paths["summary"],
-                    n_resamples=args.bootstrap_resamples,
-                    method=args.bootstrap_method,
-                )
+                if not done:
+                    logging.info(
+                        "Progress heartbeat for %s: completed=%s/%s, remaining=%s, cache_hits=%s, cache_misses=%s",
+                        prompt_key,
+                        completed,
+                        total_pending,
+                        len(pending_futures),
+                        cache_hits,
+                        cache_misses,
+                    )
+                    continue
 
-                legacy_json_path = None
-                raw_response_payload = raw_items or None
-                if args.legacy_predictions:
-                    legacy_dir = dataset_root / f"predictions_{model_label}"
-                    legacy_json_path = legacy_dir / f"{img_name}.json"
-                    _write_legacy_prediction(mask_arrays, legacy_json_path, raw_response_payload)
+                for future in done:
+                    img_path, gt_mask_path = futures[future]
+                    try:
+                        img_name, masks, latency, parse_success, timed_out, raw_items, from_cache = future.result()
+                    except Exception:
+                        logging.exception("Worker failed while processing image %s", img_path.name)
+                        raise
 
-                raw_response_path = None
-                if raw_response_payload is not None:
-                    raw_response_path = paths["raw_responses"] / f"{img_name}.json"
-                    raw_response_path.write_text(json.dumps(raw_response_payload))
+                    if from_cache:
+                        cache_hits += 1
+                    else:
+                        cache_misses += 1
+                    mask_arrays = [m.mask for m in masks]
+                    mask_save_path = paths["masks"] / img_name
+                    gt_array = np.array(Image.open(gt_mask_path))
+                    combined_mask = combine_masks(mask_arrays) if mask_arrays else np.zeros_like(gt_array)
+                    save_mask_png(combined_mask, mask_save_path)
 
-                predictions[img_name] = {
-                    "image_name": img_name,
-                    "latency_s": latency,
-                    "parse_success": parse_success,
-                    "timed_out": timed_out,
-                    "num_masks": len(mask_arrays),
-                    "prediction_path": str(mask_save_path),
-                    "overlay_path": str(overlay_path),
-                    "metrics": {"iou": iou, "dice": dice, "success": success},
-                    "legacy_json_path": str(legacy_json_path) if legacy_json_path else None,
-                    "raw_response_path": str(raw_response_path) if raw_response_path else None,
-                    "provider": run_provider,
-                    "prompt_family": prompt_family,
-                }
+                    overlay_path = paths["overlays"] / img_name
+                    overlay = plot_segmentation_masks(Image.open(img_path), masks)
+                    overlay.save(overlay_path)
 
-                write_prediction_jsonl(predictions.values(), paths["predictions_jsonl"], mode="w")
+                    iou, dice, success = compute_metrics_for_masks(
+                        gt_array, mask_arrays, success_threshold=args.success_threshold
+                    )
+                    metrics_map = upsert_metrics(
+                        metrics_map,
+                        PerImageMetrics(image_name=img_name, iou=iou, dice=dice, success=success),
+                        metrics_path=paths["metrics"],
+                        summary_path=paths["summary"],
+                        n_resamples=args.bootstrap_resamples,
+                        method=args.bootstrap_method,
+                    )
+
+                    legacy_json_path = None
+                    raw_response_payload = raw_items or None
+                    if args.legacy_predictions:
+                        legacy_dir = dataset_root / f"predictions_{model_label}"
+                        legacy_json_path = legacy_dir / f"{img_name}.json"
+                        _write_legacy_prediction(mask_arrays, legacy_json_path, raw_response_payload)
+
+                    raw_response_path = None
+                    if raw_response_payload is not None:
+                        raw_response_path = paths["raw_responses"] / f"{img_name}.json"
+                        raw_response_path.write_text(json.dumps(raw_response_payload))
+
+                    predictions[img_name] = {
+                        "image_name": img_name,
+                        "latency_s": latency,
+                        "parse_success": parse_success,
+                        "timed_out": timed_out,
+                        "num_masks": len(mask_arrays),
+                        "prediction_path": str(mask_save_path),
+                        "overlay_path": str(overlay_path),
+                        "metrics": {"iou": iou, "dice": dice, "success": success},
+                        "legacy_json_path": str(legacy_json_path) if legacy_json_path else None,
+                        "raw_response_path": str(raw_response_path) if raw_response_path else None,
+                        "provider": run_provider,
+                        "prompt_family": prompt_family,
+                    }
+
+                    write_prediction_jsonl(predictions.values(), paths["predictions_jsonl"], mode="w")
+                    completed += 1
+                    logging.info(
+                        "Processed [%s/%s] %s (cache=%s, parse_success=%s, timed_out=%s, masks=%s, latency_s=%.3f, iou=%.4f, dice=%.4f)",
+                        completed,
+                        total_pending,
+                        img_name,
+                        "hit" if from_cache else "miss",
+                        parse_success,
+                        timed_out,
+                        len(mask_arrays),
+                        latency,
+                        iou,
+                        dice,
+                    )
 
         if metrics_map:
             summary = aggregate_from_map(

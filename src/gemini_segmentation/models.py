@@ -249,11 +249,75 @@ def _require_cairosvg():
     return cairosvg
 
 
+def _normalize_moondream_bbox(raw_bbox: Any) -> Dict[str, float] | None:
+    if isinstance(raw_bbox, (list, tuple)) and len(raw_bbox) == 4:
+        raw_bbox = {
+            "x_min": raw_bbox[0],
+            "y_min": raw_bbox[1],
+            "x_max": raw_bbox[2],
+            "y_max": raw_bbox[3],
+        }
+
+    if not isinstance(raw_bbox, dict):
+        return None
+
+    aliases = {
+        "x_min": ("x_min", "xmin", "x0", "left"),
+        "y_min": ("y_min", "ymin", "y0", "top"),
+        "x_max": ("x_max", "xmax", "x1", "right"),
+        "y_max": ("y_max", "ymax", "y1", "bottom"),
+    }
+    normalized: Dict[str, float] = {}
+    for key, options in aliases.items():
+        value = None
+        for option in options:
+            if option in raw_bbox:
+                value = raw_bbox[option]
+                break
+        if value is None:
+            return None
+        try:
+            normalized[key] = float(value)
+        except (TypeError, ValueError):
+            return None
+    return normalized
+
+
+def _extract_moondream_path_bbox(result: Any) -> Tuple[str | None, Dict[str, float] | None]:
+    if isinstance(result, dict):
+        raw_path = result.get("path") or result.get("svg_path")
+        raw_bbox = result.get("bbox") or result.get("box") or result.get("bounding_box")
+    else:
+        raw_path = getattr(result, "path", None) or getattr(result, "svg_path", None)
+        raw_bbox = (
+            getattr(result, "bbox", None)
+            or getattr(result, "box", None)
+            or getattr(result, "bounding_box", None)
+        )
+
+    path_d = raw_path.strip() if isinstance(raw_path, str) else None
+    bbox = _normalize_moondream_bbox(raw_bbox)
+    return path_d, bbox
+
+
 def _bbox_to_pixel_floats(bbox: Dict[str, float], width: int, height: int) -> Tuple[float, float, float, float]:
-    x0 = float(bbox.get("x_min", 0.0)) * width
-    y0 = float(bbox.get("y_min", 0.0)) * height
-    x1 = float(bbox.get("x_max", 0.0)) * width
-    y1 = float(bbox.get("y_max", 0.0)) * height
+    x0_raw = float(bbox.get("x_min", 0.0))
+    y0_raw = float(bbox.get("y_min", 0.0))
+    x1_raw = float(bbox.get("x_max", 0.0))
+    y1_raw = float(bbox.get("y_max", 0.0))
+
+    is_normalized = all(0.0 <= val <= 1.0 for val in (x0_raw, y0_raw, x1_raw, y1_raw))
+    if is_normalized:
+        x0 = x0_raw * width
+        y0 = y0_raw * height
+        x1 = x1_raw * width
+        y1 = y1_raw * height
+    else:
+        x0 = x0_raw
+        y0 = y0_raw
+        x1 = x1_raw
+        y1 = y1_raw
+
     x0 = max(0.0, min(float(width), x0))
     x1 = max(0.0, min(float(width), x1))
     y0 = max(0.0, min(float(height), y0))
@@ -301,6 +365,33 @@ def _rasterize_svg_path(
     png_bytes = cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=width, output_height=height)
     mask = Image.open(io.BytesIO(png_bytes)).convert("L")
     return np.array(mask, dtype=np.uint8)
+
+
+def _invoke_moondream_segment(client: Any, image_obj: Image.Image, label: str, model_name: str) -> Any:
+    # Prefer documented signatures first. Only attempt model override variants as fallback.
+    attempts = [
+        lambda: client.segment(image_obj, label),
+        lambda: client.segment(image=image_obj, object=label),
+        lambda: client.segment(image=image_obj, target=label),
+    ]
+    if model_name:
+        attempts.extend(
+            [
+                lambda: client.segment(image_obj, label, model=model_name),
+                lambda: client.segment(image=image_obj, object=label, model=model_name),
+                lambda: client.segment(image=image_obj, target=label, model=model_name),
+            ]
+        )
+    last_type_error: TypeError | None = None
+    for invoke in attempts:
+        try:
+            return invoke()
+        except TypeError as exc:
+            last_type_error = exc
+            continue
+    if last_type_error:
+        raise last_type_error
+    raise RuntimeError("No Moondream client segment invocation strategy succeeded")
 
 
 class MoondreamSegmenter:
@@ -372,19 +463,13 @@ class MoondreamSegmenter:
         api_width, api_height = image_obj.size
         scale_x, scale_y = scale
         try:
-            call_kwargs: Dict[str, Any] = {"model": self.model_name} if self.model_name else {}
-            try:
-                result = self.client.segment(image_obj, label, **call_kwargs)
-            except TypeError:
-                # Older client versions may not accept model as a kwarg
-                result = self.client.segment(image_obj, label)
+            result = _invoke_moondream_segment(self.client, image_obj, label, self.model_name)
         except Exception:  # pragma: no cover - network/API failures
             logging.exception("Moondream segmentation call failed for label '%s'", label)
             return None, None
 
-        path_d = result.get("path") if isinstance(result, dict) else None
-        bbox = result.get("bbox") if isinstance(result, dict) else None
-        if not path_d or not bbox:
+        path_d, bbox = _extract_moondream_path_bbox(result)
+        if not path_d or bbox is None:
             logging.warning("Moondream response missing path or bbox for label '%s'", label)
             return None, None
 

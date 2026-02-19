@@ -143,6 +143,8 @@ results/batches/<run_id>/
   logs/*.log
 ```
 
+During non-dry-run execution, the batch runner streams each active job's stdout/stderr to the terminal while also persisting full logs under `logs/*.log`.
+
 The orchestrator executes jobs sequentially by default, continues after failures, and returns non-zero if any segment/fairness job fails.
 
 Generated runtime artifacts (`results/`, `outputs/`, `artifacts/`) are ignored by default in `.gitignore` to keep repository status clean during long benchmark runs.
@@ -186,7 +188,7 @@ results/<dataset>/<model>/<run_id>/
 - **Ablation families:** All tasks support three prompt families held constant across providers. `label_v1` uses only the class name; `desc_v1` adds modality context + short definition + stable attributes; `desc_neg_v1` equals `desc_v1` plus an exclusions block (the negation block is appended byte-for-byte so the only delta is the exclusions text). Enumerate families by repeating `--prompt-family`.
 - **Provider-specific construction:**
   - **Gemini** receives the full JSON-schema prompt (keys `box_2d`, `mask`, `label`) built via the selected family.
-  - **Moondream** ignores the JSON schema; it receives the target label(s) as the `object` string(s). Use `--moondream-target` overrides for multi-target tasks; otherwise the preset label(s) are sent.
+  - **Moondream** ignores the JSON schema; it receives the target label(s) as the `object` string(s). Use `--moondream-target` overrides for multi-target tasks; otherwise the preset label(s) are sent. The adapter does not pass Gemini-style `temperature`/`thinking_budget` controls to Moondream segment calls.
   - **Replicate/Sa2VA** expects natural-language instructions rather than schemas. Each target gets a concise instruction like `Segment the optic disc.`; overrides can be provided with `--replicate-instruction` to align custom wording per label.
 - **Caching/resume:** Cache keys include provider, prompt family, and a hash of the provider-specific payload to avoid collisions between JSON-schema prompts (Gemini) and object/instruction strings (Moondream/Replicate).
 
@@ -199,6 +201,7 @@ results/<dataset>/<model>/<run_id>/
 - **Tables/Figure placeholders:** `python -m gemini_segmentation.paper.make_all --results <path/to/long_form_results.csv>` (Parquet is also supported). The YAML registry in `configs/paper.yaml` documents required columns (task/model/prompt_strategy/iou/dice/success), display labels, and specifications for each table/figure. Artifacts land in `artifacts/` by default with `tables/*.csv|html|docx` and `figures/*.png|pdf`; override with `--artifacts` for CI.
 - **Figure 1 best cases:** `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml` selects the highest-IoU image per configured dataset/target (persisting selection to `artifacts/figures/figure1_best_cases/selection.yaml`) and renders the montage to PDF/PNG in the same directory.
 - **Fairness Figure 2 + Table 4:** `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>` consumes the ITA fairness CSVs from a completed run and emits the four-panel plot plus Table 4 to `artifacts/fairness/` (paths are configurable via `--output-dir`).
+- **Prompt-family comparison report (Markdown/HTML/PDF):** `python -m gemini_segmentation.paper.prompt_comparison --dataset polyp` reads completed run summaries and emits grouped model sections plus a consolidated PDF mega table with publication-style model/prompt labels. Rows include mean IoU/Dice (95% CI), median IoU/Dice, and success rate in `.md`, `.html`, `.pdf`, and `.csv` under `results/reports/`. Override run selection with `--gemini-run-id` / `--moondream-run-id` when needed.
 
 ## Extending the project
 - **New datasets**: Add discovery helpers or manifest builders in `src/gemini_segmentation/data.py` if layout differs; keep `images/`/`masks/` naming stable to reuse the CLI.
