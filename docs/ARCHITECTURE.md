@@ -7,7 +7,7 @@
 4. Provider adapter performs inference (`src/gemini_segmentation/models.py`) with retry policy applied in CLI orchestration (`max_retries`).
 5. Responses are parsed into normalized masks and persisted (`src/gemini_segmentation/io.py`).
 6. IoU/Dice/summary metrics are updated incrementally (`src/gemini_segmentation/metrics.py`) with single-channel normalization for RGB/RGBA mask inputs.
-7. Optional fairness analysis consumes saved masks/metrics (`src/gemini_segmentation/fairness.py`).
+7. Optional fairness analysis consumes saved masks/metrics (`src/gemini_segmentation/fairness.py`), with configurable fairness preprocessing concurrency via `fairness --workers`.
 8. Optional batch orchestration composes multiple `segment`/`fairness` CLI calls from config matrices (`src/gemini_segmentation/batch.py`) and mirrors child command output to terminal + per-job logs.
 
 ## Manuscript Alignment

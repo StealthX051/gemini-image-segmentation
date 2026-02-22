@@ -1205,6 +1205,7 @@ def test_command_fairness_invokes_analyze_with_expected_arguments(tmp_path, monk
         bootstrap_method="abc",
         bootstrap_resamples=10,
         sample_size=None,
+        workers=4,
         success_threshold=0.7,
     )
 
@@ -1216,6 +1217,7 @@ def test_command_fairness_invokes_analyze_with_expected_arguments(tmp_path, monk
     assert called_kwargs["prediction_masks_dir"] == masks_dir
     assert called_kwargs["n_resamples"] == 10
     assert called_kwargs["method"] == "abc"
+    assert called_kwargs["workers"] == 4
     assert called_kwargs["per_image_metrics"] == {"img1.png": (0.5, 0.6, True)}
 
 
@@ -1274,11 +1276,27 @@ def test_command_fairness_raises_when_metrics_missing(tmp_path, monkeypatch):
         bootstrap_method=None,
         bootstrap_resamples=None,
         sample_size=None,
+        workers=1,
         success_threshold=0.7,
     )
 
     with pytest.raises(FileNotFoundError):
         command_fairness(args)
+
+
+def test_fairness_parser_accepts_workers_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "fairness",
+            "dataset",
+            "/tmp/dataset",
+            "/tmp/run",
+            "--workers",
+            "10",
+        ]
+    )
+    assert args.workers == 10
 
 
 if __name__ == "__main__":

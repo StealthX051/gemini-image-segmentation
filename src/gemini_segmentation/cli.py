@@ -836,6 +836,12 @@ def command_fairness(args: argparse.Namespace) -> None:
     )
     images = sample_images(manifest_images, args.sample_size)
     image_mask_pairs = paired_masks(images, dataset_paths.masks_dir)
+    workers = max(1, int(getattr(args, "workers", 1)))
+    logging.info(
+        "Starting fairness analysis for %s image/mask pairs with workers=%s",
+        len(image_mask_pairs),
+        workers,
+    )
 
     metrics_path = Path(args.run_dir) / "metrics.csv"
     if not metrics_path.exists():
@@ -846,6 +852,14 @@ def command_fairness(args: argparse.Namespace) -> None:
     }
 
     prediction_masks_dir = Path(args.run_dir) / "masks"
+    progress_interval = max(1, len(image_mask_pairs) // 20)
+    progress_state = {"last_logged": 0}
+
+    def _on_progress(done: int, total: int) -> None:
+        if done == total or (done - progress_state["last_logged"]) >= progress_interval:
+            logging.info("Fairness progress: %s/%s image pairs evaluated", done, total)
+            progress_state["last_logged"] = done
+
     results, summaries, stats_payload = analyze_fairness(
         image_mask_pairs=image_mask_pairs,
         prediction_masks_dir=prediction_masks_dir,
@@ -853,6 +867,8 @@ def command_fairness(args: argparse.Namespace) -> None:
         success_threshold=args.success_threshold,
         n_resamples=int(bootstrap_resamples),
         method=str(bootstrap_method),
+        workers=workers,
+        progress_callback=_on_progress,
     )
 
     fairness_dir = Path(args.run_dir) / "fairness"
@@ -979,6 +995,7 @@ def build_parser() -> argparse.ArgumentParser:
     fair.add_argument("run_dir", help="Segmentation run directory under results/")
     fair.add_argument("--manifest", help="Optional manifest filename or path")
     fair.add_argument("--sample-size", type=int, help="Limit number of images")
+    fair.add_argument("--workers", type=int, default=1, help="Number of worker threads for fairness preprocessing")
     fair.add_argument("--success-threshold", type=float, default=0.5)
     fair.add_argument(
         "--bootstrap-method",

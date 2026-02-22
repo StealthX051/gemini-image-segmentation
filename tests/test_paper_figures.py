@@ -97,6 +97,7 @@ def test_generate_fairness_artifacts_from_objects(tmp_path: Path) -> None:
 
     assert figure_artifacts.pdf.exists()
     assert figure_artifacts.png.exists()
+    assert figure_artifacts.svg.exists()
     assert table_artifacts.csv.exists()
     assert table_artifacts.html.exists()
     assert table_artifacts.docx.exists()

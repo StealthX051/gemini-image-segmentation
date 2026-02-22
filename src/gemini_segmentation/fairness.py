@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Callable, Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -33,7 +34,11 @@ def _load_mask(path: Path) -> np.ndarray:
 
 
 def _perilesional_mask(gt_mask: np.ndarray) -> np.ndarray:
-    inverted = np.logical_not(gt_mask > 127)
+    mask = np.asarray(gt_mask)
+    mask = np.squeeze(mask)
+    if mask.ndim == 3:
+        mask = np.max(mask, axis=-1)
+    inverted = np.logical_not(mask > 127)
     return inverted.astype(np.uint8)
 
 
@@ -79,6 +84,41 @@ def tone_group(ita: float) -> str:
     return "Light" if ita > 28 else "Dark"
 
 
+def _build_fairness_result(
+    *,
+    img_path: Path,
+    gt_mask_path: Path,
+    prediction_masks_dir: Path,
+    per_image_metrics: Dict[str, Tuple[float, float, bool]],
+) -> FairnessResult | None:
+    pred_mask_file = prediction_masks_dir / img_path.name
+    if not pred_mask_file.exists():
+        return None
+
+    with Image.open(img_path) as image_obj:
+        image = image_obj.convert("RGB")
+        gt_mask = _load_mask(gt_mask_path)
+
+    peri_mask = _perilesional_mask(gt_mask)
+    ita, candidate_count = compute_ita(image, peri_mask)
+    if math.isnan(ita) or candidate_count < 200:
+        return None
+
+    chardon = label_chardon(ita)
+    tone = tone_group(ita)
+    iou, dice, success = per_image_metrics.get(img_path.name, (math.nan, math.nan, False))
+    return FairnessResult(
+        image_name=img_path.name,
+        ita=ita,
+        chardon_label=chardon,
+        tone_group=tone,
+        iou=iou,
+        dice=dice,
+        success=success,
+        candidate_count=candidate_count,
+    )
+
+
 def summarize_groups(
     results: Iterable[FairnessResult], *, n_resamples: int = 5000, method: str = "bca"
 ) -> List[GroupSummary]:
@@ -121,34 +161,52 @@ def analyze_fairness(
     success_threshold: float = 0.5,
     n_resamples: int = 5000,
     method: str = "bca",
+    workers: int = 1,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> Tuple[List[FairnessResult], List[GroupSummary], Dict[str, float]]:
-    results: List[FairnessResult] = []
-    for img_path, gt_mask_path in image_mask_pairs:
-        pred_mask_file = prediction_masks_dir / img_path.name
-        if not pred_mask_file.exists():
-            continue
-        image = Image.open(img_path)
-        gt_mask = _load_mask(gt_mask_path)
-        peri_mask = _perilesional_mask(gt_mask)
-        ita, candidate_count = compute_ita(image, peri_mask)
-        if math.isnan(ita) or candidate_count < 200:
-            continue
+    image_pairs = list(image_mask_pairs)
+    total_pairs = len(image_pairs)
+    indexed_results: List[Tuple[int, FairnessResult]] = []
 
-        chardon = label_chardon(ita)
-        tone = tone_group(ita)
-        iou, dice, success = per_image_metrics.get(img_path.name, (math.nan, math.nan, False))
-        results.append(
-            FairnessResult(
-                image_name=img_path.name,
-                ita=ita,
-                chardon_label=chardon,
-                tone_group=tone,
-                iou=iou,
-                dice=dice,
-                success=success,
-                candidate_count=candidate_count,
+    if workers <= 1:
+        completed = 0
+        for idx, (img_path, gt_mask_path) in enumerate(image_pairs):
+            result = _build_fairness_result(
+                img_path=img_path,
+                gt_mask_path=gt_mask_path,
+                prediction_masks_dir=prediction_masks_dir,
+                per_image_metrics=per_image_metrics,
             )
-        )
+            completed += 1
+            if progress_callback is not None:
+                progress_callback(completed, total_pairs)
+            if result is not None:
+                indexed_results.append((idx, result))
+    else:
+        max_workers = max(1, int(workers))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    _build_fairness_result,
+                    img_path=img_path,
+                    gt_mask_path=gt_mask_path,
+                    prediction_masks_dir=prediction_masks_dir,
+                    per_image_metrics=per_image_metrics,
+                ): idx
+                for idx, (img_path, gt_mask_path) in enumerate(image_pairs)
+            }
+
+            completed = 0
+            for future in as_completed(futures):
+                idx = futures[future]
+                result = future.result()
+                completed += 1
+                if progress_callback is not None:
+                    progress_callback(completed, total_pairs)
+                if result is not None:
+                    indexed_results.append((idx, result))
+
+    results = [result for _, result in sorted(indexed_results, key=lambda item: item[0])]
 
     summaries = summarize_groups(results, n_resamples=n_resamples, method=method)
     stats_payload = compute_fairness_statistics(results, success_threshold)

@@ -1,12 +1,13 @@
 # Agent Handoff (Current State)
 
-Last updated: 2026-02-19.
+Last updated: 2026-02-22.
 
 ## Current Priorities
 - Prompt-ablation runs (`label_v1`, `desc_v1`, `desc_neg_v1`) across Gemini models.
 - Robotics ER benchmarking via `gemini-robotics-er-1.5-preview`.
 - Cost control through local request cache plus Gemini explicit cache where supported.
 - Current fairness workflow preference: run fairness analyses on dermoscopy-focused studies unless explicitly requested for other datasets.
+- Fairness Figure 2/Table 4 rendering parity with legacy derm notebook styling and manuscript-facing annotations.
 
 ## Runtime Facts
 - CLI entrypoint: `python -m gemini_segmentation.cli segment ...`
@@ -20,6 +21,8 @@ Last updated: 2026-02-19.
 - Replicate batch jobs now support explicit parity fields (`replicate_model_version`, `replicate_targets`, `replicate_instructions`, `replicate_cache_dir`) with strict preflight validation.
 - Replicate default instructions are prompt-family aware (`label_v1`, `desc_v1`, `desc_neg_v1`) and remain overrideable per target via repeated `--replicate-instruction`.
 - Replicate adapter sends image payloads as file uploads (with a data-URI fallback path for client-serialization compatibility).
+- `python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>` expects fairness CSVs in that exact directory and now writes `figure2.png`, `figure2.pdf`, and `figure2.svg`.
+- Current Figure 2 panel behavior: left IoU panel uses full `0.0–1.0` range; right IoU panel is thresholded (`IoU >= 0.5`) and truncated at `0.5`.
 
 ## Critical Gotchas
 - `.env` is not auto-loaded into shell process env vars by the CLI. Export env vars in the active shell before running.
@@ -31,6 +34,7 @@ Last updated: 2026-02-19.
     - avoid preset model-bearing entries, or
     - use family-only selection with explicit `--model-name`.
 - Some datasets have RGB ground-truth masks; metrics now normalize masks to single-channel before IoU/Dice.
+- Do not pass placeholder paths like `<your_run>` to `paper.figures`; pass the actual run fairness folder containing `fairness_results.csv`.
 
 ## Current Replicate Validation State (2026-02-19)
 - Focused parity/unit tests pass for Replicate-targeted suites.

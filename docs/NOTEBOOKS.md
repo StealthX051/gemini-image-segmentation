@@ -13,6 +13,7 @@ Most legacy dataset notebooks now live under `notebooks/`.
 - `notebooks/13_*` + `notebooks/14_*`: histopathology preparation and evaluation (copy variants).
 - `notebooks/15_*` + `notebooks/16_*`: laparoscopy preparation and evaluation (copy variants).
 - `ita_fitzpatrick_analysis.ipynb`: fairness/ITA analysis from segmentation outputs (currently at repository root).
+- `notebooks/06_derm_genai_segmentation_evaluation.ipynb`: legacy derm fairness plotting/statistics workflow (reference source for Figure 2 styling/annotations).
 - `notebooks/2_01_polyp_medoid_selection.ipynb` and `notebooks/98_vasc_surg_working.ipynb`: ad hoc exploratory stages.
 
 ## Relationship To CLI

@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from docx import Document
+from matplotlib.colors import to_rgb
+from scipy import stats as scipy_stats
 from scipy.stats import bootstrap
 
 from ..fairness import compute_fairness_statistics, summarize_groups
@@ -27,11 +29,16 @@ LOGGER = logging.getLogger(__name__)
 DEFAULT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ARTIFACTS_DIR = DEFAULT_ROOT / "artifacts" / "fairness"
 
+BINARY_TONE_PALETTE = {"Light": "#377eb8", "Dark": "#ff7f0e"}
+PANEL_FACE = "#f6f7fb"
+GRID_COLOR = "#8f8f8f"
+
 
 @dataclass
 class FigureArtifacts:
     pdf: Path
     png: Path
+    svg: Path
 
 
 @dataclass
@@ -39,6 +46,19 @@ class TableArtifacts:
     csv: Path
     html: Path
     docx: Path
+
+
+def _save_figure2_outputs(fig: plt.Figure, output_dir: Path) -> FigureArtifacts:
+    """Save Figure 2 in raster and vector formats."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = output_dir / "figure2.pdf"
+    png_path = output_dir / "figure2.png"
+    svg_path = output_dir / "figure2.svg"
+    fig.savefig(pdf_path)
+    fig.savefig(png_path)
+    fig.savefig(svg_path)
+    return FigureArtifacts(pdf=pdf_path, png=png_path, svg=svg_path)
 
 
 def _results_to_df(results: Iterable[FairnessResult]) -> pd.DataFrame:
@@ -99,30 +119,197 @@ def _tone_order(df: pd.DataFrame) -> List[str]:
     return present + remaining
 
 
+def _adjust_lightness(color: str, factor: float = 1.2) -> Tuple[float, float, float]:
+    rgb = np.array(to_rgb(color), dtype=float)
+    if factor >= 1.0:
+        return tuple(np.clip(rgb + (1.0 - rgb) * (factor - 1.0), 0.0, 1.0))
+    return tuple(np.clip(rgb * factor, 0.0, 1.0))
+
+
+def _format_p_value(p_val: float | None) -> str:
+    if p_val is None or pd.isna(p_val):
+        return "n/a"
+    if p_val < 0.001:
+        return "<0.001"
+    return f"={p_val:.3f}"
+
+
+def _p_to_stars(p_val: float | None) -> str:
+    if p_val is None or pd.isna(p_val):
+        return "n.s."
+    if p_val < 0.001:
+        return "***"
+    if p_val < 0.01:
+        return "**"
+    if p_val < 0.05:
+        return "*"
+    return "n.s."
+
+
+def _cliffs_delta(x: np.ndarray, y: np.ndarray) -> float:
+    clean_x = np.asarray([v for v in x if not pd.isna(v)], dtype=float)
+    clean_y = np.asarray([v for v in y if not pd.isna(v)], dtype=float)
+    if clean_x.size == 0 or clean_y.size == 0:
+        return float("nan")
+    diffs = clean_x[:, None] - clean_y[None, :]
+    wins = np.sum(diffs > 0)
+    losses = np.sum(diffs < 0)
+    return float((wins - losses) / (clean_x.size * clean_y.size))
+
+
+def _two_group_p_value(df: pd.DataFrame) -> float:
+    order = _tone_order(df)
+    if len(order) < 2:
+        return float("nan")
+    first = df[df["tone_group"] == order[0]]["iou"].dropna().to_numpy()
+    second = df[df["tone_group"] == order[1]]["iou"].dropna().to_numpy()
+    if first.size < 2 or second.size < 2:
+        return float("nan")
+    try:
+        return float(scipy_stats.kruskal(first, second).pvalue)
+    except Exception:
+        return float("nan")
+
+
 def _render_histogram(ax: plt.Axes, df: pd.DataFrame) -> None:
+    ax.set_facecolor(PANEL_FACE)
     ita = df["ita"].dropna()
-    ax.hist(ita, bins=20, color="#4c72b0", edgecolor="white")
+    ax.hist(ita, bins=40, color="#4c72b0", edgecolor="white", linewidth=0.6, alpha=0.9)
     ax.axvline(28, color="red", linestyle="--", label="28° threshold")
+    ax.text(28.5, ax.get_ylim()[1] * 0.9, "28° cut-point", color="red", fontsize=8, va="top")
     ax.set_title("ITA distribution")
     ax.set_xlabel("ITA (°)")
     ax.set_ylabel("Count")
+    ax.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.35)
     ax.legend()
 
 
-def _render_success_bars(ax: plt.Axes, df: pd.DataFrame) -> None:
+def _render_success_bars(ax: plt.Axes, df: pd.DataFrame, stats_payload: Dict[str, float]) -> None:
+    ax.set_facecolor(PANEL_FACE)
     order = _tone_order(df)
     counts = df.groupby(["tone_group", "success"]).size().unstack(fill_value=0)
     success = counts.get(True, pd.Series([0] * len(order), index=order)).reindex(order, fill_value=0)
     failure = counts.get(False, pd.Series([0] * len(order), index=order)).reindex(order, fill_value=0)
+    total = (success + failure).replace(0, np.nan)
+    success_prop = (success / total).fillna(0.0)
+    failure_prop = (failure / total).fillna(0.0)
 
-    ax.bar(order, success, color="#55a868", label="Success")
-    ax.bar(order, failure, bottom=success, color="#c44e52", label="Failure")
-    ax.set_ylabel("Images")
-    ax.set_title("Success by tone group")
-    ax.legend()
+    positions = np.arange(len(order))
+    failure_colors = [_adjust_lightness(BINARY_TONE_PALETTE.get(tone, "#7f7f7f"), 0.8) for tone in order]
+    success_colors = [_adjust_lightness(BINARY_TONE_PALETTE.get(tone, "#7f7f7f"), 1.15) for tone in order]
+
+    bar_height = 0.56
+    bars_fail = ax.barh(
+        positions,
+        failure_prop.values,
+        color=failure_colors,
+        edgecolor="white",
+        label="Fail",
+        height=bar_height,
+    )
+    bars_ok = ax.barh(
+        positions,
+        success_prop.values,
+        left=failure_prop.values,
+        color=success_colors,
+        edgecolor="white",
+        label="Success",
+        height=bar_height,
+    )
+
+    for i, (bar_fail, bar_ok) in enumerate(zip(bars_fail, bars_ok)):
+        fail_count = int(failure.iloc[i])
+        succ_count = int(success.iloc[i])
+
+        fail_width = float(bar_fail.get_width())
+        fail_text = f"Fail\n{fail_count}"
+        fail_y = bar_fail.get_y() + bar_fail.get_height() / 2.0
+        if fail_width >= 0.12:
+            fail_x = bar_fail.get_x() + fail_width / 2.0
+            fail_ha = "center"
+            fail_color = "white"
+        else:
+            fail_x = bar_fail.get_x() + fail_width + 0.01
+            fail_ha = "left"
+            fail_color = "#303030"
+        ax.text(
+            fail_x,
+            fail_y,
+            fail_text,
+            ha=fail_ha,
+            va="center",
+            color=fail_color,
+            fontsize=8,
+            fontweight="bold",
+            linespacing=0.9,
+        )
+
+        succ_width = float(bar_ok.get_width())
+        succ_text = f"Success\n{succ_count}"
+        succ_y = bar_ok.get_y() + bar_ok.get_height() / 2.0
+        if succ_width >= 0.15:
+            succ_x = bar_ok.get_x() + succ_width / 2.0
+            succ_ha = "center"
+            succ_color = "white"
+        else:
+            succ_x = bar_ok.get_x() + succ_width + 0.01
+            succ_ha = "left"
+            succ_color = "#303030"
+        ax.text(
+            succ_x,
+            succ_y,
+            succ_text,
+            ha=succ_ha,
+            va="center",
+            color=succ_color,
+            fontsize=8,
+            fontweight="bold",
+            linespacing=0.9,
+        )
+
+    tick_labels = [f"{tone} (n={int(total.iloc[idx])})" for idx, tone in enumerate(order)]
+    ax.set_yticks(positions)
+    ax.set_yticklabels(tick_labels)
+    ax.set_xlim(0, 1.0)
+    ax.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
+    ax.set_xlabel("Proportion of Images")
+    ax.set_title("Success Rate (IoU ≥ 0.5)")
+    ax.grid(axis="x", linestyle=":", alpha=0.35)
+    ax.set_ylim(-0.5, len(order) - 0.5)
+
+    if {"Light", "Dark"}.issubset(set(order)):
+        light_idx = order.index("Light")
+        dark_idx = order.index("Dark")
+        delta = (success_prop.iloc[light_idx] - success_prop.iloc[dark_idx]) * 100.0
+        chi2_p = stats_payload.get("chi2_success_p", np.nan)
+        cliff_delta = stats_payload.get("cliffs_delta_iou_light_dark", np.nan)
+        star = _p_to_stars(chi2_p)
+        cliff_text = ""
+        if cliff_delta is not None and not pd.isna(cliff_delta):
+            cliff_text = f"\nCliff's d {cliff_delta:+.2f}"
+        ax.text(
+            1.02,
+            0.95,
+            f"Delta = {delta:+.1f}%\nchi2 p {_format_p_value(chi2_p)} ({star}){cliff_text}",
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=9,
+            color="#333333",
+        )
 
 
-def _render_distribution(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
+def _render_distribution(
+    ax: plt.Axes,
+    df: pd.DataFrame,
+    title: str,
+    *,
+    p_value: float | None = None,
+    cliff_delta: float | None = None,
+    y_min: float = 0.0,
+    success_panel: bool = False,
+) -> None:
+    ax.set_facecolor(PANEL_FACE)
     order = _tone_order(df)
     data = [df[df["tone_group"] == tone]["iou"].dropna().values for tone in order]
     positions = np.arange(len(order)) + 1
@@ -131,45 +318,170 @@ def _render_distribution(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
         ax.text(0.5, 0.5, "No IoU data", ha="center", va="center", transform=ax.transAxes)
         ax.set_xticks(positions)
         ax.set_xticklabels(order)
-        ax.set_ylim(0, 1)
+        ax.set_ylim(y_min, 1.05)
         ax.set_title(title)
         return
 
-    violin = ax.violinplot(data, positions=positions, showmeans=True, showextrema=False)
-    for body in violin["bodies"]:
-        body.set_facecolor("#4c72b0")
-        body.set_alpha(0.6)
-    ax.boxplot(data, positions=positions, widths=0.2, patch_artist=True, boxprops={"facecolor": "white"})
+    violin = ax.violinplot(
+        data,
+        positions=positions,
+        showmeans=False,
+        showmedians=False,
+        showextrema=False,
+        widths=0.85,
+        bw_method="scott",
+    )
+    max_n = max((len(values) for values in data), default=0)
+    for idx, body in enumerate(violin["bodies"]):
+        tone = order[idx] if idx < len(order) else ""
+        body.set_facecolor(BINARY_TONE_PALETTE.get(tone, "#4c72b0"))
+        body.set_alpha(0.72)
+        body.set_edgecolor("#202020")
+        body.set_linewidth(0.9)
+        if max_n > 0 and len(data[idx]) > 0:
+            scale = np.sqrt(len(data[idx])) / np.sqrt(max_n)
+            verts = body.get_paths()[0].vertices
+            center = float(np.mean(verts[:, 0]))
+            verts[:, 0] = (verts[:, 0] - center) * scale + center
+
+    ax.boxplot(
+        data,
+        positions=positions,
+        widths=0.15,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "#e41a1c", "linewidth": 1.2},
+        boxprops={"linewidth": 1.2, "facecolor": "white"},
+        whiskerprops={"linewidth": 1.1},
+        capprops={"linewidth": 1.1},
+    )
     ax.set_xticks(positions)
     ax.set_xticklabels(order)
-    ax.set_ylabel("IoU")
+    ax.set_xlabel("Skin tone group")
+    ax.set_ylabel("Intersection over Union (IoU)")
     ax.set_title(title)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(y_min, 1.04)
+    ax.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.35)
+
+    if success_panel:
+        ax.axhline(0.5, linestyle="-", linewidth=1.2, color="#d62728", zorder=0)
+    elif y_min <= 0.5:
+        ax.axhline(0.5, linestyle="--", linewidth=1.1, color="#7a7a7a", zorder=0)
+    ax.axhline(0.8, linestyle=":", linewidth=1.0, color="#7a7a7a", zorder=0)
+
+    y_top = ax.get_ylim()[1]
+    for pos, values in zip(positions, data):
+        if len(values) == 0:
+            continue
+        median = float(np.median(values))
+        ax.text(
+            pos,
+            y_top - 0.005,
+            f"n={len(values)}\nmedian={median:.2f}",
+            ha="center",
+            va="top",
+            fontsize=8,
+            bbox={"facecolor": "white", "alpha": 0.75, "edgecolor": "none", "pad": 0.2},
+        )
+
+    if len(order) == 2 and p_value is not None and not pd.isna(p_value):
+        y_bracket = y_top - 0.045
+        h = 0.006
+        x1, x2 = positions[0], positions[1]
+        ax.plot(
+            [x1, x1, x2, x2],
+            [y_bracket, y_bracket + h, y_bracket + h, y_bracket],
+            lw=1.2,
+            color="#111111",
+            clip_on=False,
+        )
+        ax.text(
+            (x1 + x2) * 0.5,
+            y_bracket + h + 0.001,
+            f"{_p_to_stars(p_value)}  (p {_format_p_value(p_value)})",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            color="#111111",
+            fontweight="bold",
+        )
+        if cliff_delta is not None and not pd.isna(cliff_delta):
+            ax.text(
+                (x1 + x2) * 0.5,
+                y_bracket - 0.006,
+                f"Cliff's d={cliff_delta:+.2f}",
+                ha="center",
+                va="top",
+                fontsize=8,
+                color="#333333",
+            )
+
+    if y_min > 0.0:
+        ax.text(
+            0.01,
+            0.02,
+            f"Scale truncated at {y_min:.1f}",
+            transform=ax.transAxes,
+            fontsize=8,
+            color="#555555",
+        )
 
 
-def render_figure2(df: pd.DataFrame, *, output_dir: Path, seed: int = 0) -> FigureArtifacts:
-    """Render the four-panel fairness figure and write PNG/PDF outputs."""
+def render_figure2(
+    df: pd.DataFrame,
+    *,
+    output_dir: Path,
+    stats_payload: Optional[Dict[str, float]] = None,
+    seed: int = 0,
+) -> FigureArtifacts:
+    """Render the four-panel fairness figure and write PNG/PDF/SVG outputs."""
 
     if df.empty:
         raise ValueError("Fairness results are empty; cannot render figure.")
     np.random.seed(seed)
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+    fig, axes = plt.subplots(2, 2, figsize=(13, 9))
+    fig.patch.set_facecolor("white")
+    stats_payload = stats_payload or {}
     _render_histogram(axes[0, 0], df)
-    _render_success_bars(axes[0, 1], df)
-    _render_distribution(axes[1, 0], df, "IoU by tone (all)")
+    _render_success_bars(axes[0, 1], df, stats_payload)
+
+    all_p = stats_payload.get("dunn_iou_light_dark_p", stats_payload.get("kruskal_iou_p", np.nan))
+    all_delta = stats_payload.get("cliffs_delta_iou_light_dark", np.nan)
+    _render_distribution(
+        axes[1, 0],
+        df,
+        "IoU by tone (all)",
+        p_value=all_p,
+        cliff_delta=all_delta,
+        y_min=0.0,
+        success_panel=False,
+    )
+
     filtered = df[df["iou"] >= 0.5]
-    _render_distribution(axes[1, 1], filtered, "IoU by tone (IoU ≥ 0.5)")
+    filtered_p = _two_group_p_value(filtered)
+    order = _tone_order(filtered)
+    if len(order) >= 2:
+        arr_a = filtered[filtered["tone_group"] == order[0]]["iou"].dropna().to_numpy()
+        arr_b = filtered[filtered["tone_group"] == order[1]]["iou"].dropna().to_numpy()
+        filtered_delta = _cliffs_delta(arr_a, arr_b)
+    else:
+        filtered_delta = float("nan")
+    _render_distribution(
+        axes[1, 1],
+        filtered,
+        "IoU by tone (IoU ≥ 0.5)",
+        p_value=filtered_p,
+        cliff_delta=filtered_delta,
+        y_min=0.5,
+        success_panel=True,
+    )
     plt.tight_layout()
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = output_dir / "figure2.pdf"
-    png_path = output_dir / "figure2.png"
-    fig.savefig(pdf_path)
-    fig.savefig(png_path)
+    artifacts = _save_figure2_outputs(fig, output_dir)
     plt.close(fig)
     LOGGER.info("Figure 2 saved to %s", output_dir)
-    return FigureArtifacts(pdf=pdf_path, png=png_path)
+    return artifacts
 
 
 def _format_ci(mean: float, lower: float, upper: float) -> str:
@@ -349,7 +661,7 @@ def generate_fairness_artifacts(
         summary_df = _summaries_to_df(summaries)
 
     stats_payload = stats_payload or {}
-    figure_artifacts = render_figure2(results_df, output_dir=output_dir, seed=seed)
+    figure_artifacts = render_figure2(results_df, output_dir=output_dir, stats_payload=stats_payload, seed=seed)
     table_artifacts = render_table4(
         results_df=results_df,
         summary_df=summary_df,
