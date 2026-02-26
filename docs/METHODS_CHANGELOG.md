@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v6` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record).
+- `posthoc_v7` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity).
 
 ## Entries
 
@@ -77,6 +77,13 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: completed Replicate/Sa2VA cross-provider reporting parity by adding explicit Replicate run selection support to the prompt-comparison reporting pipeline (`--replicate-run-id`) and recording successful end-to-end Replicate validation state (smoke + full polyp 3-family batch run) in operational docs.
 - Impact: allows manuscript-style consolidated prompt-comparison reports to include Replicate rows deterministically by run ID, and improves reproducibility handoff by pinning a validated Replicate run and model version in project docs without changing segmentation metric definitions.
 - Code anchors: `src/gemini_segmentation/paper/prompt_comparison.py`, `tests/test_paper_prompt_comparison.py`, `README.md`, `docs/AGENT_HANDOFF.md`, `llms.txt`.
+
+### MTH-POSTHOC-010
+- Date: 2026-02-26.
+- Status: active.
+- Summary: aligned fairness Figure 2 rendering with legacy derm notebook styling and added panel-level artifact exports so a single run writes the combined figure and each panel as standalone files (`PNG/PDF/SVG`).
+- Impact: improves manuscript assembly flexibility and reproducible figure reuse without changing fairness statistics, thresholds, or metric definitions.
+- Code anchors: `src/gemini_segmentation/paper/figures.py`, `tests/test_paper_figures.py`, `README.md`, `docs/AGENT_HANDOFF.md`, `docs/NOTEBOOKS.md`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

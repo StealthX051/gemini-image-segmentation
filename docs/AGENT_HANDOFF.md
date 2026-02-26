@@ -1,6 +1,6 @@
 # Agent Handoff (Current State)
 
-Last updated: 2026-02-22.
+Last updated: 2026-02-26.
 
 ## Current Priorities
 - Prompt-ablation runs (`label_v1`, `desc_v1`, `desc_neg_v1`) across Gemini models.
@@ -21,7 +21,7 @@ Last updated: 2026-02-22.
 - Replicate batch jobs now support explicit parity fields (`replicate_model_version`, `replicate_targets`, `replicate_instructions`, `replicate_cache_dir`) with strict preflight validation.
 - Replicate default instructions are prompt-family aware (`label_v1`, `desc_v1`, `desc_neg_v1`) and remain overrideable per target via repeated `--replicate-instruction`.
 - Replicate adapter sends image payloads as file uploads (with a data-URI fallback path for client-serialization compatibility).
-- `python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>` expects fairness CSVs in that exact directory and now writes `figure2.png`, `figure2.pdf`, and `figure2.svg`.
+- `python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>` expects fairness CSVs in that exact directory and writes `figure2.png|pdf|svg` plus standalone panel exports (`figure2_panel_a` through `figure2_panel_d` in PNG/PDF/SVG).
 - Current Figure 2 panel behavior: left IoU panel uses full `0.0–1.0` range; right IoU panel is thresholded (`IoU >= 0.5`) and truncated at `0.5`.
 
 ## Critical Gotchas

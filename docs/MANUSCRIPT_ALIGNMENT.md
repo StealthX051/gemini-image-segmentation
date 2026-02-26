@@ -52,6 +52,7 @@ This document keeps implementation changes aligned with:
 - Recommended run-id policy for matrix studies is `<study_id>_<YYYYMMDD-HHMMSS>`; reuse the same run-id only when explicitly resuming the same study settings.
 - Matrix configs should define the full three-family ablation (`label_v1`, `desc_v1`, `desc_neg_v1`) per job unless a sensitivity analysis explicitly narrows scope.
 - Comparative reporting can be generated post-run via `python -m gemini_segmentation.paper.prompt_comparison` (grouped per model and per prompt family; includes mean/median IoU-Dice, 95% CIs, and success rate) without altering segmentation outputs.
+- Fairness paper artifact generation (`python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>`) may emit both combined Figure 2 and standalone panel exports (`figure2_panel_a` to `figure2_panel_d` in PNG/PDF/SVG); this is a presentation/export change only and does not alter fairness computations.
 - When method semantics change, update `src/gemini_segmentation/prompts.py`.
 - When method semantics change, update `configs/prompts.yaml`.
 - When method semantics change, update relevant tests in `tests/test_prompts.py` and `tests/test_cli.py`.

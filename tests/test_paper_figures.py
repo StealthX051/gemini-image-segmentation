@@ -98,6 +98,16 @@ def test_generate_fairness_artifacts_from_objects(tmp_path: Path) -> None:
     assert figure_artifacts.pdf.exists()
     assert figure_artifacts.png.exists()
     assert figure_artifacts.svg.exists()
+    panel_stems = [
+        "figure2_panel_a_ita_distribution",
+        "figure2_panel_b_success_rate",
+        "figure2_panel_c_iou_all",
+        "figure2_panel_d_iou_success",
+    ]
+    for stem in panel_stems:
+        assert (tmp_path / f"{stem}.pdf").exists()
+        assert (tmp_path / f"{stem}.png").exists()
+        assert (tmp_path / f"{stem}.svg").exists()
     assert table_artifacts.csv.exists()
     assert table_artifacts.html.exists()
     assert table_artifacts.docx.exists()

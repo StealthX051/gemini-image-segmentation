@@ -61,6 +61,57 @@ def _save_figure2_outputs(fig: plt.Figure, output_dir: Path) -> FigureArtifacts:
     return FigureArtifacts(pdf=pdf_path, png=png_path, svg=svg_path)
 
 
+def _save_figure2_panel_outputs(
+    *,
+    output_dir: Path,
+    df: pd.DataFrame,
+    filtered: pd.DataFrame,
+    stats_payload: Dict[str, float],
+    all_p: float | None,
+    all_delta: float | None,
+    filtered_p: float | None,
+    filtered_delta: float | None,
+) -> None:
+    """Save Figure 2 panels as standalone files for manuscript reuse."""
+
+    def _save_panel(stem: str, render_fn: Callable[[plt.Axes], None]) -> None:
+        fig, ax = plt.subplots(figsize=(6.2, 4.6))
+        fig.patch.set_facecolor("white")
+        render_fn(ax)
+        fig.tight_layout()
+        fig.savefig(output_dir / f"{stem}.pdf")
+        fig.savefig(output_dir / f"{stem}.png")
+        fig.savefig(output_dir / f"{stem}.svg")
+        plt.close(fig)
+
+    _save_panel("figure2_panel_a_ita_distribution", lambda ax: _render_histogram(ax, df))
+    _save_panel("figure2_panel_b_success_rate", lambda ax: _render_success_bars(ax, df, stats_payload))
+    _save_panel(
+        "figure2_panel_c_iou_all",
+        lambda ax: _render_distribution(
+            ax,
+            df,
+            "IoU by tone (all)",
+            p_value=all_p,
+            cliff_delta=all_delta,
+            y_min=0.0,
+            success_panel=False,
+        ),
+    )
+    _save_panel(
+        "figure2_panel_d_iou_success",
+        lambda ax: _render_distribution(
+            ax,
+            filtered,
+            "IoU by tone (IoU ≥ 0.5)",
+            p_value=filtered_p,
+            cliff_delta=filtered_delta,
+            y_min=0.5,
+            success_panel=True,
+        ),
+    )
+
+
 def _results_to_df(results: Iterable[FairnessResult]) -> pd.DataFrame:
     """Convert :class:`FairnessResult` records into a DataFrame."""
 
@@ -480,6 +531,16 @@ def render_figure2(
 
     artifacts = _save_figure2_outputs(fig, output_dir)
     plt.close(fig)
+    _save_figure2_panel_outputs(
+        output_dir=output_dir,
+        df=df,
+        filtered=filtered,
+        stats_payload=stats_payload,
+        all_p=all_p,
+        all_delta=all_delta,
+        filtered_p=filtered_p,
+        filtered_delta=filtered_delta,
+    )
     LOGGER.info("Figure 2 saved to %s", output_dir)
     return artifacts
 

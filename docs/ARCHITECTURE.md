@@ -37,7 +37,7 @@
 - `io.py`: JSON parsing, base64 encoding/decoding, overlay rendering, JSONL persistence.
 - `metrics.py`: IoU/Dice, bootstrap CI, rolling summaries.
 - `fairness.py`: ITA extraction, tone grouping, statistical testing outputs.
-- `paper/`: manuscript-ready tables and figures.
+- `paper/`: manuscript-ready tables and figures (including combined and panel-level fairness figure exports via `paper/figures.py`).
 
 ## Extension Points
 - New provider: implement adapter in `models.py`, keep return contract stable, wire in `cli.py`.
