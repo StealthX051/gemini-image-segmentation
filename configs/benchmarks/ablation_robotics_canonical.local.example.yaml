@@ -31,3 +31,6 @@ datasets:
   - name: histopathology
     root: /path/to/histopathology_dataset_root
     manifest: master_imagelist_histopathology.txt
+  - name: ima_plusplus
+    root: /path/to/ima_plusplus_dataset_root
+    manifest: master_imagelist_ima_plusplus.txt

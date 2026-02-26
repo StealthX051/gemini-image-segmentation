@@ -1,6 +1,7 @@
 # Architecture
 
 ## Runtime Flow
+0. Optional dataset adaptation scripts materialize external datasets into CLI-compatible layout (`scripts/prepare_ima_plusplus.py` for IMA++) while preserving source/raw assets.
 1. `segment` command resolves dataset paths and manifest (`src/gemini_segmentation/data.py`).
 2. Prompt payload is built from prompt family/preset/provider (`src/gemini_segmentation/prompts.py`, `src/gemini_segmentation/config.py`).
 3. Optional local request cache lookup is performed before provider calls (`src/gemini_segmentation/cache.py`, wired in `src/gemini_segmentation/cli.py`).
@@ -43,11 +44,16 @@
 - New provider: implement adapter in `models.py`, keep return contract stable, wire in `cli.py`.
 - New prompt family: extend `PromptFamily` and dictionaries in `prompts.py`, add YAML presets in `configs/prompts.yaml`.
 - New dataset layout: extend dataset discovery/manifest behavior in `data.py` while preserving `images/` + `masks/` assumptions where possible.
+- IMA++ integration pattern: keep core CLI ingestion unchanged and adapt source metadata/masks/images into `images/` + `masks/` with a prep script, while retaining richer mask metadata in sidecar files for optional analyses.
+- IMA++ prep download backends: API mode (default) performs threaded ISIC API v2 image downloads with retry/backoff + skip-existing resume semantics; template mode executes user-specified CLI command templates.
 - New analysis metric: add metric computation in `metrics.py`, propagate to CSV/summary and tests.
 - New benchmark study matrix: add/update YAML under `configs/benchmarks/` and validate orchestration behavior with `tests/test_batch.py`.
 
 ## Operational Notes
 - Large datasets are intentionally externalized; repository code should not assume local copies exist.
+- IMA++ canonical GT policy is handled at prep time (`STAPLE -> MV -> single-annotator-only`) with all masks retained for optional sensitivity analyses.
+- IMA++ split-manifest generation accepts either split `ISIC_id` or `image` columns and normalizes filename case/extensions (e.g., `.JPG` to local `.jpg`) before mapping to prepared images.
+- IMA++ prep copies optional `seg_metadata_multiannotator_subset.csv` into dataset metadata when present.
 - Notebook workflows are legacy but still relevant for provenance and parity checks.
 - Paper tools expect stable CSV schemas and config-driven registries in `configs/`.
 - Replicate preflight checks token availability but cannot verify billing/credits or model-version permissions ahead of runtime; those can still surface as provider `429`/`422` responses during execution.

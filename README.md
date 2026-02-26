@@ -90,6 +90,8 @@ python -c "import docx; print(docx.__file__)"
   - Replicate version caveat: `--replicate-model-version` must be a valid, accessible version ID. Invalid or inaccessible IDs return `422 Invalid version or not permitted`.
   - Replicate validation status (2026-02-19): end-to-end SA2VA implementation is validated, including a completed full polyp 3-family batch run (`replicate_sa2va_polyp_full_20260219-162118`) with 1000 predictions per family. See `docs/AGENT_HANDOFF.md` for exact run paths and per-family metrics.
 - `fairness`: Compute ITA/Fitzpatrick statistics from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--manifest] [--sample-size] [--workers] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`. Defaults fall back to the stored `run_config.json` so fairness matches the originating segmentation subset and bootstrap settings.
+- `python scripts/prepare_ima_plusplus.py`: Build an IMA++ CLI-compatible dataset root (`images/`, `masks/`, `masks_all/`, `master_imagelist_ima_plusplus.txt`) with canonical GT policy `STAPLE -> majority vote -> single annotator only` while retaining all mask metadata for sensitivity analyses.
+- `python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <results/.../run_id> [--dataset-root <path>]`: Generate IMA++ sensitivity artifacts against MV consensus and annotator masks under `<run_dir>/ima_plusplus_sensitivity/`.
 
 ### Benchmark matrix automation
 Use the batch orchestrator to run full prompt-ablation matrices unattended across models and datasets:
@@ -187,6 +189,7 @@ results/<dataset>/<model>/<run_id>/
   - `polyp` → colorectal polyp
   - `optic_disc_cup` → optic disc + optic cup
   - `derm_lesion` → skin lesion
+  - `ima_plusplus` → skin lesion (IMA++ dermoscopy with STAPLE-first canonical GT policy handled in prep script)
   - `busi_mass` → BUSI breast mass
   - `pneumothorax_cxr` → chest X-ray pneumothorax
   - `lits_liver` / `lits_liver_mass` → LiTS liver vs. liver-mass targets
@@ -194,6 +197,30 @@ results/<dataset>/<model>/<run_id>/
   - `histopathology` → tissue regions of diagnostic interest (tumor, stroma, necrosis, etc.)
   - Structured prompt families (`label_v1`, `desc_v1`, `desc_neg_v1`) can be selected explicitly via presets (e.g., `polyp_desc_neg_v1`) or by repeating `--prompt-family`; `desc_neg_v1` appends negation-only guardrails.
 - Override inline with `--prompt` or `--prompt-file`; the chosen text and model parameters are captured in `run_config.json` for reproducibility.
+
+### IMA++ Preparation And Sensitivity
+- Canonical IMA++ preparation command:
+  - `python scripts/prepare_ima_plusplus.py --download-zenodo --download-split-csvs --download-images --download-images-mode api --isic-api-workers 12`
+- Download order is intentional:
+  - Zenodo first (`segs.zip`, `seg_metadata.csv`, `img_metadata.csv`), then ISIC images by `ISIC_id`.
+- Zenodo DOI pinning note:
+  - DOI `10.5281/zenodo.14201692` currently resolves to record `14201693`; prep defaults are pinned to live record file URLs and can be overridden via `--*-url` flags.
+- `download-images-mode api` uses ISIC API v2 directly with retries, backoff, skip-existing, and threaded workers for faster/resumable pulls.
+- `isic auth login` is from older `isic-cli` docs; current CLI releases use `isic image download ...` directly for CLI-based flows.
+- The preparation script writes:
+  - `images/` + `masks/` for normal CLI ingestion,
+  - `masks_all/` plus `metadata/ima_plusplus_index.jsonl|csv` for multi-annotator sensitivity analyses.
+  - copies `metadata/seg_metadata.csv`, `metadata/img_metadata.csv`, and (when available) `metadata/seg_metadata_multiannotator_subset.csv`.
+  - writes split manifests (`train_ima_plusplus.txt`, `val_ima_plusplus.txt`, `test_ima_plusplus.txt`) from split CSVs that provide either `ISIC_id` or `image` columns (case/extension normalized).
+- Canonical GT policy is deterministic:
+  - STAPLE consensus mask if available (`*_ST_ST_ST_ST.png`),
+  - else majority-vote consensus (`*_MV_MV_MV_MV.png`),
+  - else single annotator only when there is exactly one annotator mask.
+- Post-run sensitivity analysis command:
+  - `python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <results/.../run_id> --dataset-root data/IMAplusplus_cli`
+- Sensitivity outputs are written under `<run_dir>/ima_plusplus_sensitivity/`:
+  - `metrics_mv.csv`, `metrics_annotators.csv`, `per_image_annotator_summary.csv`,
+  - `summary_overall.csv`, `summary_by_tool.csv`, `summary_by_skill_level.csv`.
 
 #### Prompt families and provider-aware shaping
 - **Ablation families:** All tasks support three prompt families held constant across providers. `label_v1` uses only the class name; `desc_v1` adds modality context + short definition + stable attributes; `desc_neg_v1` equals `desc_v1` plus an exclusions block (the negation block is appended byte-for-byte so the only delta is the exclusions text). Enumerate families by repeating `--prompt-family`.

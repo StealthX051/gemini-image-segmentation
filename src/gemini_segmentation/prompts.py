@@ -71,6 +71,11 @@ PROMPTS_LABEL: Dict[str, str] = {
         "2D bounding box in the key \"box_2d\", the segmentation mask in key \"mask\", and the text label in the key \"label\". "
         "Use the label \"skin lesion\". If no skin lesion is present, return []."
     ),
+    "ima_plusplus": (
+        "Give the segmentation masks for all skin lesions. Output a JSON list of segmentation masks where each entry contains the "
+        "2D bounding box in the key \"box_2d\", the segmentation mask in key \"mask\", and the text label in the key \"label\". "
+        "Use the label \"skin lesion\". If no skin lesion is present, return []."
+    ),
     "optic_disc_cup": (
         "Give the segmentation masks for the optic disc and the optic cup in this retinal fundus image. Output a JSON list of two "
         "segmentation masks. One entry should have the label \"optic disc\" and the other \"optic cup\". Each entry must contain "
@@ -118,6 +123,13 @@ PROMPTS_DESC: Dict[str, str] = {
         "colorectal polyp is present, return []."
     ),
     "derm_lesion": (
+        "Give the segmentation masks for the objects. Output a JSON list of segmentation masks where each entry contains the 2D bounding "
+        "box in the key \"box_2d\", the segmentation mask in key \"mask\", and the text label in the key \"label\". Use descriptive "
+        "labels. Image context: This is a dermoscopic image of skin. Segment: skin lesion region(s), i.e., an abnormal area distinct "
+        "from surrounding normal skin. Lesions may be pigmented (brown/black) or erythematous (red/pink) and typically have a visible "
+        "border. Use the label \"skin lesion\". If no skin lesion is present, return []."
+    ),
+    "ima_plusplus": (
         "Give the segmentation masks for the objects. Output a JSON list of segmentation masks where each entry contains the 2D bounding "
         "box in the key \"box_2d\", the segmentation mask in key \"mask\", and the text label in the key \"label\". Use descriptive "
         "labels. Image context: This is a dermoscopic image of skin. Segment: skin lesion region(s), i.e., an abnormal area distinct "
@@ -182,6 +194,10 @@ PROMPTS_NEGATION: Dict[str, str] = {
         "is present, return []."
     ),
     "derm_lesion": (
+        "Return a tight boundary around lesion pixels. Exclude: hairs, ruler marks, color calibration charts, ink/pen markings, specular "
+        "highlights, and any text/overlays. Use the label \"skin lesion\". If no skin lesion is present, return []."
+    ),
+    "ima_plusplus": (
         "Return a tight boundary around lesion pixels. Exclude: hairs, ruler marks, color calibration charts, ink/pen markings, specular "
         "highlights, and any text/overlays. Use the label \"skin lesion\". If no skin lesion is present, return []."
     ),
@@ -264,6 +280,7 @@ class ProviderPrompt:
 DEFAULT_TARGETS: Dict[str, List[str]] = {
     "polyp": ["colorectal polyp"],
     "derm_lesion": ["skin lesion"],
+    "ima_plusplus": ["skin lesion"],
     "optic_disc_cup": ["optic disc", "optic cup"],
     "laparoscopy_uterus_tools": ["uterus", "surgical tool"],
     "busi_mass": ["mass"],
@@ -276,6 +293,7 @@ DEFAULT_TARGETS: Dict[str, List[str]] = {
 REPLICATE_TASK_CONTEXT: Dict[str, str] = {
     "polyp": "This is a colonoscopy frame.",
     "derm_lesion": "This is a dermoscopic skin image.",
+    "ima_plusplus": "This is a dermoscopic skin image.",
     "optic_disc_cup": "This is a retinal fundus image.",
     "laparoscopy_uterus_tools": "This is a laparoscopic surgical frame.",
     "busi_mass": "This is a breast ultrasound image.",
@@ -288,6 +306,7 @@ REPLICATE_TASK_CONTEXT: Dict[str, str] = {
 REPLICATE_TASK_EXCLUSIONS: Dict[str, str] = {
     "polyp": "surrounding normal mucosa, specular glare, bubbles/debris, instruments, and text overlays",
     "derm_lesion": "hairs, ruler marks, color charts, pen marks, specular glare, and text overlays",
+    "ima_plusplus": "hairs, ruler marks, color charts, pen marks, specular glare, and text overlays",
     "optic_disc_cup": "background outside the retina and any text overlays",
     "laparoscopy_uterus_tools": "smoke/plume, glare not belonging to tissue/tool, and text overlays",
     "busi_mass": "UI elements, depth markers, calipers, and non-lesion acoustic artifacts",

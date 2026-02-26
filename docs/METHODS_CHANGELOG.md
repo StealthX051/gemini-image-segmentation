@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v7` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity).
+- `posthoc_v9` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity + IMA++ STAPLE-first canonical GT preparation with retained multi-mask sensitivity workflow + IMA++ acquisition/prep hardening for live Zenodo resolution, threaded API downloads, and split-manifest compatibility).
 
 ## Entries
 
@@ -84,6 +84,20 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: aligned fairness Figure 2 rendering with legacy derm notebook styling and added panel-level artifact exports so a single run writes the combined figure and each panel as standalone files (`PNG/PDF/SVG`).
 - Impact: improves manuscript assembly flexibility and reproducible figure reuse without changing fairness statistics, thresholds, or metric definitions.
 - Code anchors: `src/gemini_segmentation/paper/figures.py`, `tests/test_paper_figures.py`, `README.md`, `docs/AGENT_HANDOFF.md`, `docs/NOTEBOOKS.md`.
+
+### MTH-POSTHOC-011
+- Date: 2026-02-26.
+- Status: active.
+- Summary: added IMA++ dataset preparation and sensitivity-analysis tooling with deterministic canonical GT policy (`STAPLE -> majority vote -> single annotator only`) while retaining all masks + per-mask metadata for optional post-run sensitivity analyses.
+- Impact: preserves existing CLI ingestion contracts (`images/` + `masks/`) while enabling manuscript-defensible consensus-first evaluation on IMA++ and transparent robustness checks against MV/annotator variation.
+- Code anchors: `scripts/prepare_ima_plusplus.py`, `scripts/analyze_ima_plusplus_sensitivity.py`, `src/gemini_segmentation/prompts.py`, `configs/prompts.yaml`, `tests/test_prepare_ima_plusplus.py`, `tests/test_ima_plusplus_sensitivity.py`, `tests/test_prompts.py`, `tests/test_cli.py`, `README.md`, `docs/MANUSCRIPT_ALIGNMENT.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_HANDOFF.md`.
+
+### MTH-POSTHOC-012
+- Date: 2026-02-26.
+- Status: active.
+- Summary: hardened IMA++ preparation operations by (1) pinning live Zenodo record file defaults, (2) adding threaded ISIC API download mode with retry/backoff + resume-safe skip-existing behavior, (3) ingesting optional `seg_metadata_multiannotator_subset.csv`, and (4) fixing split-manifest generation to support split CSVs with `image` column values (including case/extension normalization).
+- Impact: improves large-scale acquisition reliability and reproducibility of prepared dataset artifacts without changing canonical GT policy, segmentation metrics, or sensitivity-analysis definitions.
+- Code anchors: `scripts/prepare_ima_plusplus.py`, `tests/test_prepare_ima_plusplus.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_HANDOFF.md`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

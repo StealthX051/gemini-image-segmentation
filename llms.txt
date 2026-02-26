@@ -46,6 +46,8 @@ Main commands:
 - python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml
 - python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>
 - python -m gemini_segmentation.paper.prompt_comparison --dataset polyp [--gemini-run-id <id>] [--moondream-run-id <id>] [--replicate-run-id <id>]
+- python scripts/prepare_ima_plusplus.py --download-zenodo --download-split-csvs --download-images --download-images-mode api --isic-api-workers 12
+- python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <results/.../run_id> [--dataset-root <data/IMAplusplus_cli>]
 
 Primary test targets:
 - pytest -q
@@ -57,3 +59,4 @@ Primary test targets:
 - pytest -q tests/test_replicate_segmenter.py tests/test_cli.py tests/test_batch.py tests/test_prompts.py
 - pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py
 - pytest -q tests/test_paper_prompt_comparison.py
+- pytest -q tests/test_prepare_ima_plusplus.py tests/test_ima_plusplus_sensitivity.py

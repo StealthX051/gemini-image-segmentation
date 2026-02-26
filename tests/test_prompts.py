@@ -59,6 +59,13 @@ class BuildPromptTests(unittest.TestCase):
         self.assertTrue(desc_neg_instruction.startswith(desc_instruction))
         self.assertIn("Exclude:", desc_neg_instruction)
 
+    def test_ima_plusplus_aliases_derm_targeting(self) -> None:
+        prompt = build_prompt("ima_plusplus", PromptFamily.DESC_NEG_V1)
+        self.assertIn("skin lesion", prompt)
+        replicate_prompt = build_prompt_for_provider("ima_plusplus", PromptFamily.LABEL_V1, "replicate")
+        self.assertEqual(replicate_prompt.prompt, "Segment the skin lesion.")
+        self.assertEqual(list(replicate_prompt.targets or ()), ["skin lesion"])
+
 
 if __name__ == "__main__":
     unittest.main()

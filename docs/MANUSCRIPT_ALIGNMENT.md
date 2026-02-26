@@ -43,6 +43,11 @@ This document keeps implementation changes aligned with:
 - Segmentation runs should use bounded retries for timeout/parse-failure outcomes to reduce one-off malformed-output artifacts.
 - Default CLI behavior uses `max_retries=5` unless intentionally overridden for sensitivity analyses.
 - Mask metrics should normalize multi-channel mask arrays (e.g., RGB PNG labels) to single-channel before IoU/Dice computation.
+- IMA++ dermoscopy integration uses a deterministic canonical-GT policy at dataset-prep time:
+  - prefer STAPLE consensus masks,
+  - fall back to majority-vote consensus masks,
+  - fall back to single annotator masks only when exactly one annotator mask exists for the image.
+- For IMA++, all masks and per-mask metadata (annotator/tool/skill labels when provided) should be retained for optional sensitivity analyses; canonical-GT evaluation should not discard this provenance.
 - Replicate runs should be configured with explicit per-process throttling when account limits are tight (for example `workers=1`, `rate_limit>=12s` in smoke validation) so provider throttling does not confound method validation.
 
 ## Reproducibility And Reporting
@@ -52,6 +57,10 @@ This document keeps implementation changes aligned with:
 - Recommended run-id policy for matrix studies is `<study_id>_<YYYYMMDD-HHMMSS>`; reuse the same run-id only when explicitly resuming the same study settings.
 - Matrix configs should define the full three-family ablation (`label_v1`, `desc_v1`, `desc_neg_v1`) per job unless a sensitivity analysis explicitly narrows scope.
 - Comparative reporting can be generated post-run via `python -m gemini_segmentation.paper.prompt_comparison` (grouped per model and per prompt family; includes mean/median IoU-Dice, 95% CIs, and success rate) without altering segmentation outputs.
+- IMA++ optional sensitivity analysis may be generated post-run via `python scripts/analyze_ima_plusplus_sensitivity.py` to report:
+  - model-vs-MV consensus metrics,
+  - model-vs-annotator metrics and per-image dispersion summaries (mean/median/IQR/min/max),
+  - stratified summaries by annotator tool/skill metadata when available.
 - Fairness paper artifact generation (`python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>`) may emit both combined Figure 2 and standalone panel exports (`figure2_panel_a` to `figure2_panel_d` in PNG/PDF/SVG); this is a presentation/export change only and does not alter fairness computations.
 - When method semantics change, update `src/gemini_segmentation/prompts.py`.
 - When method semantics change, update `configs/prompts.yaml`.

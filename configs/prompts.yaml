@@ -87,6 +87,27 @@ derm_lesion_desc_neg_v1:
   prompt_task: derm_lesion
   prompt_family: desc_neg_v1
 
+# IMA++ dermoscopy
+ima_plusplus:
+  <<: *defaults
+  prompt_task: ima_plusplus
+  prompt_family: desc_v1
+
+ima_plusplus_label_v1:
+  <<: *defaults
+  prompt_task: ima_plusplus
+  prompt_family: label_v1
+
+ima_plusplus_desc_v1:
+  <<: *defaults
+  prompt_task: ima_plusplus
+  prompt_family: desc_v1
+
+ima_plusplus_desc_neg_v1:
+  <<: *defaults
+  prompt_task: ima_plusplus
+  prompt_family: desc_neg_v1
+
 # BUSI breast ultrasound
 busi_mass:
   <<: *defaults

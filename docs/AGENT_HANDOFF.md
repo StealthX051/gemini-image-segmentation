@@ -23,6 +23,12 @@ Last updated: 2026-02-26.
 - Replicate adapter sends image payloads as file uploads (with a data-URI fallback path for client-serialization compatibility).
 - `python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>` expects fairness CSVs in that exact directory and writes `figure2.png|pdf|svg` plus standalone panel exports (`figure2_panel_a` through `figure2_panel_d` in PNG/PDF/SVG).
 - Current Figure 2 panel behavior: left IoU panel uses full `0.0–1.0` range; right IoU panel is thresholded (`IoU >= 0.5`) and truncated at `0.5`.
+- IMA++ prep utility: `python scripts/prepare_ima_plusplus.py` builds a separate CLI-compatible dataset root (`data/IMAplusplus_cli` by default) with canonical GT policy `STAPLE -> MV -> single annotator only`.
+- IMA++ prep defaults now use threaded ISIC API download mode (`--download-images-mode api`) with retries/backoff and skip-existing behavior for resumable pulls.
+- IMA++ prep also copies optional `seg_metadata_multiannotator_subset.csv` when present/downloaded.
+- IMA++ split manifests now handle split CSVs using either `ISIC_id` or `image` columns (including `.JPG`/case normalization).
+- IMA++ sensitivity utility: `python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <...>` writes MV/annotator sensitivity summaries under `<run_dir>/ima_plusplus_sensitivity/`.
+- New dataset key for prompts/presets: `ima_plusplus` (dermoscopy semantics aligned with `derm_lesion`).
 
 ## Critical Gotchas
 - `.env` is not auto-loaded into shell process env vars by the CLI. Export env vars in the active shell before running.
@@ -35,6 +41,8 @@ Last updated: 2026-02-26.
     - use family-only selection with explicit `--model-name`.
 - Some datasets have RGB ground-truth masks; metrics now normalize masks to single-channel before IoU/Dice.
 - Do not pass placeholder paths like `<your_run>` to `paper.figures`; pass the actual run fairness folder containing `fairness_results.csv`.
+- `isic auth login` is not available in newer `isic-cli` versions; use the prep script's API mode (default) or template mode with current `isic image download` syntax when needed.
+- Zenodo DOI `10.5281/zenodo.14201692` currently resolves to record `14201693`; prep script defaults point to live record URLs and are overrideable.
 
 ## Current Replicate Validation State (2026-02-19)
 - Focused parity/unit tests pass for Replicate-targeted suites.
@@ -150,6 +158,8 @@ For a full polyp 3x3 run (three models × three prompt families) with `workers=1
 - `src/gemini_segmentation/models.py`
 - `src/gemini_segmentation/cache.py`
 - `src/gemini_segmentation/metrics.py`
+- `scripts/prepare_ima_plusplus.py`
+- `scripts/analyze_ima_plusplus_sensitivity.py`
 - `tests/test_cli.py`
 - `tests/test_batch.py`
 - `tests/test_metrics.py`
