@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v13` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity + IMA++ STAPLE-first canonical GT preparation with retained multi-mask sensitivity workflow + IMA++ acquisition/prep hardening for live Zenodo resolution, threaded API downloads, and split-manifest compatibility + enhanced dermoscopy fairness audit v2 with legacy-safe mode routing, SHA/pHash dedup, canonical analysis frame, trend/sensitivity artifacts, and proxy-language templating + enhanced fairness lesion-area/binarization correctness hardening for unit-scale GT masks and full-resolution lesion fraction retention + enhanced ITA methodology controls/provenance notes with optional legacy-like ITA sensitivity output for discrepancy analysis + enhanced-default ITA region reset to global non-lesional with aggregated L*/b* ITA and region-aware proxy labeling).
+- `posthoc_v15` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity + IMA++ STAPLE-first canonical GT preparation with retained multi-mask sensitivity workflow + IMA++ acquisition/prep hardening for live Zenodo resolution, threaded API downloads, and split-manifest compatibility + enhanced dermoscopy fairness audit v2 with legacy-safe mode routing, SHA/pHash dedup, canonical analysis frame, trend/sensitivity artifacts, and proxy-language templating + enhanced fairness lesion-area/binarization correctness hardening for unit-scale GT masks and full-resolution lesion fraction retention + enhanced ITA methodology controls/provenance notes with optional legacy-like ITA sensitivity output for discrepancy analysis + enhanced-default ITA region reset to global non-lesional with aggregated L*/b* ITA and region-aware proxy labeling + covariate-adjusted predictive-margin success effects with bootstrap CIs and model-spec artifacts + adjusted-model component contribution outputs with CI-based significance and publication-readable enhanced report tables).
 
 ## Entries
 
@@ -161,6 +161,20 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: consolidated enhanced fairness documentation into an implementation-aligned methods specification (`docs/FAIRNESS_ENHANCED_METHODS.md`) and synchronized operational/manuscript docs to the current enhanced defaults and stage behavior.
 - Impact: improves manuscript reproducibility and reporting consistency without changing fairness computation logic or output schemas.
 - Code anchors: `docs/FAIRNESS_ENHANCED_METHODS.md`, `docs/FAIRNESS_ENHANCED.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
+
+### MTH-POSTHOC-022
+- Date: 2026-02-28.
+- Status: active.
+- Summary: added covariate-adjusted binary-success disparity estimation to enhanced fairness using logistic-regression predictive margins, standardized adjusted risks (`r_low_adj`, `r_high_adj`), and derived adjusted RD/RR/OR with bootstrap confidence intervals over dedup-aware resampling units.
+- Impact: adds a direct manuscript-ready answer to whether lower-ITA vs higher-ITA success disparity persists after adjustment for technical image covariates, while preserving non-causal proxy framing and legacy fairness mode behavior.
+- Code anchors: `src/gemini_segmentation/fairness_enhanced/covadj.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `tests/test_fairness_enhanced.py`, `docs/FAIRNESS_ENHANCED_METHODS.md`, `docs/FAIRNESS_ENHANCED.md`, `README.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
+
+### MTH-POSTHOC-023
+- Date: 2026-02-28.
+- Status: active.
+- Summary: extended enhanced covariate-adjusted outputs with per-term adjusted-model contributions (log-odds and odds-ratio views) plus bootstrap CI-based term significance flags, and updated enhanced manuscript artifact tables to include component contributions with publication-readable columns.
+- Impact: enables transparent reporting of which adjusted-model contributors retain directional/significance evidence, while keeping report generation resilient when covariate-adjusted artifacts are absent.
+- Code anchors: `src/gemini_segmentation/fairness_enhanced/covadj.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `src/gemini_segmentation/paper/figures_enhanced.py`, `tests/test_fairness_enhanced.py`, `tests/test_paper_figures_enhanced.py`, `docs/FAIRNESS_ENHANCED_METHODS.md`, `docs/FAIRNESS_ENHANCED.md`, `README.md`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

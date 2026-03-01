@@ -42,7 +42,7 @@
 - `io.py`: JSON parsing, base64 encoding/decoding, overlay rendering, JSONL persistence.
 - `metrics.py`: IoU/Dice, bootstrap CI, rolling summaries.
 - `fairness.py`: ITA extraction, tone grouping, statistical testing outputs.
-- `fairness_enhanced/`: enhanced fairness v2 pipeline (source indexing, feature-profile-gated extraction, configurable ITA region strategy with aggregated Lab ITA estimation, covariate extraction, SHA/pHash dedup, canonical analysis frame, effect sizes, trends, sensitivity artifacts, staged execution including `augment`, runtime profiling, and resumable extraction checkpoints).
+- `fairness_enhanced/`: enhanced fairness v2 pipeline (source indexing, feature-profile-gated extraction, configurable ITA region strategy with aggregated Lab ITA estimation, covariate extraction, SHA/pHash dedup, canonical analysis frame, effect sizes, covariate-adjusted predictive-margin success estimates, trends, sensitivity artifacts, staged execution including `augment`, runtime profiling, and resumable extraction checkpoints).
 - `paper/`: manuscript-ready tables and figures (legacy fairness Figure 2/Table 4 via `paper/figures.py`, enhanced fairness manuscript artifacts via `paper/figures_enhanced.py`, plus comparison/best-case utilities).
 
 ## Extension Points

@@ -5,7 +5,7 @@ This document is the implementation-aligned methods specification for the enhanc
 Version anchor:
 - Code path: `src/gemini_segmentation/fairness_enhanced/`
 - Effective defaults: `configs/fairness_enhanced.yaml`
-- Current method family: `posthoc_v13` (see `docs/METHODS_CHANGELOG.md`)
+- Current method family: `posthoc_v15` (see `docs/METHODS_CHANGELOG.md`)
 
 This file is intended to be both:
 - engineering-reference exactness (what the code does), and
@@ -199,6 +199,12 @@ Primary endpoints:
 - quality: `iou` (continuous)
 - usability: `success_t050` (binary)
 
+Interpretation note:
+- enhanced reporting includes two complementary adjusted model families.
+- family A (continuous ITA trend): uses `ita_deg` as a continuous predictor in spline trend models (Section 9).
+- family B (binary cutoff adjusted effects): uses `ita_binary` (lower vs higher ITA) in predictive-margin logistic models (Section 8.1).
+- these families answer different questions and should not be interpreted as the same estimand.
+
 Effect-size outputs (`endpoint_effects_table.csv`):
 - `cliffs_delta_iou_lower_vs_higher`
 - `median_iou_diff_lower_minus_higher`
@@ -219,6 +225,44 @@ Secondary tests:
 Threshold sensitivity:
 - recompute RD/RR/OR over configured IoU thresholds and write table/plot artifacts.
 
+### 8.1 Covariate-adjusted success effects (predictive margins)
+
+Enhanced pipeline also computes covariate-adjusted success effects from the canonical analysis set:
+- output table: `covadj_success_t050_effects.csv`
+- output payload: `covadj_success_t050_effects.json`
+- model spec: `covadj_model_spec.json`
+- bootstrap samples: `covadj_success_t050_bootstrap_samples.parquet`
+- model-component contributions: `covadj_component_effects.csv` and `covadj_component_effects.json`
+
+Estimand:
+- adjusted risks are computed as predictive margins from logistic regression:
+  - average predicted `P(success_t050=1)` if all rows are set to lower-ITA,
+  - average predicted `P(success_t050=1)` if all rows are set to higher-ITA,
+  while keeping observed covariates fixed.
+- adjusted RD/RR/OR are derived from those standardized risks.
+
+Model:
+- `success_t050 ~ ita_binary + selected numeric covariates (+ dataset_source fixed effects when multiple sources are present)`
+- numeric predictors use median imputation + standardization.
+- categorical source uses most-frequent imputation + one-hot encoding.
+- logistic regression uses `lbfgs`, `l2`, high `C` (approximate minimal regularization), deterministic seed.
+
+Coefficient/component scale interpretation:
+- `ita_binary` enters as a binary indicator (`Lower ITA` vs reference `Higher ITA`).
+- continuous covariates enter as standardized predictors (component ORs represent change per 1 SD increase).
+- dataset-source fixed effects (when enabled) are one-hot contrasts vs reference level.
+
+Inference:
+- percentile bootstrap over resampling units (`dedup_group_id` when available, else `image_id`/row fallback).
+- output includes requested and successful bootstrap replicate counts.
+- single-class bootstrap replicates are handled via constant-probability fallback (no hard failure).
+- manuscript interpretation gate: adjusted disparity is considered present when adjusted RD 95% CI excludes 0 (or adjusted OR CI excludes 1).
+
+Component contributions:
+- per-term logistic coefficients and odds ratios are extracted from the adjusted model.
+- 95% bootstrap CIs are computed per term where replicates are available.
+- term-level significance flags are CI-based (`coef CI excludes 0` and `OR CI excludes 1`), reported as descriptive model-contribution summaries.
+
 ## 9) Trend Models
 
 Success trend (`ita_trend_success.csv`, `.png`):
@@ -227,11 +271,13 @@ Success trend (`ita_trend_success.csv`, `.png`):
 - ITA-only and ITA+covariate curves (if numeric covariates available).
 - bootstrap confidence bands from resampled refits.
 - single-class guard: if resample has only one class, constant-probability curve is emitted.
+- predictor note: trend models use continuous `ita_deg`, not binary `ita_binary`.
 
 IoU trend (`ita_trend_iou_median.png`, `ita_trend_iou_summary.json`):
 - spline basis + IRLS-style quantile regression (q=0.5 by default).
 - avoids SciPy HiGHS dependency for stability.
 - ITA-only and ITA+covariate curves with bootstrap bands.
+- predictor note: trend models use continuous `ita_deg`, not binary `ita_binary`.
 
 ## 10) Feature Profiles and Gating
 
@@ -278,6 +324,7 @@ Core reproducibility artifacts:
 - ITA cutoff and ITA method payload,
 - bootstrap settings,
 - trend covariates used,
+- covariate-adjusted success summary (`covadj_success_t050`),
 - warnings list.
 
 ## 13) Manuscript-Ready Methods Text (Template)
@@ -288,7 +335,9 @@ Use/adapt this text directly in manuscript methods:
 
 "Primary fairness endpoints were (1) continuous IoU and (2) success at IoU >= 0.50. We report effect sizes and uncertainty for group differences, including Cliff's delta, differences in median and mean IoU, risk difference, relative risk, and odds ratio, with bootstrap confidence intervals (BCa with percentile fallback). Secondary nonparametric tests (Mann-Whitney U and chi-square/Fisher exact) were reported as supportive analyses."
 
-"We additionally fit continuous ITA trend models for success and IoU. Success trends used spline-expanded logistic regression with bootstrap confidence bands. IoU trends used spline-expanded median (quantile) regression with bootstrap confidence bands. Sensitivity analyses included IoU-threshold sweeps, deduplication sensitivity (none/exact/near), dependence summaries by dedup groups, and mask-source stratified summaries when available. All enhanced outputs were generated reproducibly with run metadata, runtime profiling, and checkpoint-resumable feature extraction."
+"For the binary success endpoint, we additionally estimated covariate-adjusted effects using logistic-regression predictive margins. Specifically, adjusted risks were computed as the average model-predicted success probability if all observations were set to lower-ITA versus higher-ITA while retaining observed covariates. Adjusted risk difference, relative risk, and odds ratio were derived from these standardized risks, with percentile bootstrap confidence intervals using deduplication groups as resampling units when available."
+
+"We additionally fit continuous ITA trend models for success and IoU. These trend models use continuous ITA (`ita_deg`) with spline-expanded terms and should be interpreted as shape/attenuation analyses across the ITA range, whereas the predictive-margin model estimates the adjusted binary-cutoff disparity (`ita_binary`, lower vs higher ITA). Success trends used spline-expanded logistic regression with bootstrap confidence bands. IoU trends used spline-expanded median (quantile) regression with bootstrap confidence bands. Sensitivity analyses included IoU-threshold sweeps, deduplication sensitivity (none/exact/near), dependence summaries by dedup groups, and mask-source stratified summaries when available. All enhanced outputs were generated reproducibly with run metadata, runtime profiling, and checkpoint-resumable feature extraction."
 
 ## 14) Non-Causal Framing Requirement
 
@@ -296,3 +345,12 @@ All manuscript and artifact text should preserve proxy framing:
 - use "image-derived non-lesional skin tone proxy (ITA)" (or perilesional if configured),
 - avoid identity-language claims,
 - interpret covariate-adjusted trends as descriptive attenuation checks, not causal effects.
+
+## 15) Methods Provenance (Named Standards)
+
+Key method components align to commonly used references:
+- predictive margins / standardized adjusted risks: Graubard and Korn.
+- adjusted risk contrasts from logistic models in clinical epidemiology: Austin.
+- logistic regression implementation details: scikit-learn `LogisticRegression`.
+- bootstrap confidence intervals (including BCa support): SciPy `scipy.stats.bootstrap`.
+- spline trend basis and median trend modeling: scikit-learn `SplineTransformer` and quantile-regression methods.

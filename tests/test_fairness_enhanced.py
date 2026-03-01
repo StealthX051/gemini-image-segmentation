@@ -19,6 +19,9 @@ from gemini_segmentation.fairness_enhanced.config import (
     SourceRootsConfig,
     TrendConfig,
 )
+from gemini_segmentation.fairness_enhanced.covadj import (
+    compute_covariate_adjusted_success_effects,
+)
 from gemini_segmentation.fairness_enhanced.dedup import apply_exact_dedup, hamming_hex64, phash64_hex
 from gemini_segmentation.fairness_enhanced.effects import compute_endpoint_effects
 from gemini_segmentation.fairness_enhanced.ita import (
@@ -251,6 +254,87 @@ def test_endpoint_effects_table_contains_required_metrics() -> None:
     assert "tests" in payload
 
 
+def test_covadj_success_effects_outputs_required_metrics() -> None:
+    rng = np.random.default_rng(7)
+    n = 240
+    ita = np.where(np.arange(n) < (n // 2), "Lower ITA", "Higher ITA")
+    lesion_area = rng.uniform(0.01, 0.20, size=n)
+    deltae = rng.uniform(6.0, 30.0, size=n)
+    sharp = rng.uniform(10.0, 150.0, size=n)
+    hair = rng.uniform(0.01, 0.15, size=n)
+
+    logit = (
+        -0.35
+        + 0.8 * (ita == "Higher ITA").astype(float)
+        - 1.8 * lesion_area
+        + 0.025 * deltae
+        + 0.002 * sharp
+        - 1.2 * hair
+    )
+    prob = 1.0 / (1.0 + np.exp(-logit))
+    success = (rng.uniform(size=n) < prob).astype(int)
+
+    df = pd.DataFrame(
+        {
+            "ita_binary": ita,
+            "success_t050": success,
+            "lesion_area_frac": lesion_area,
+            "deltaE_lesion_skin": deltae,
+            "sharpness_laplacian_var": sharp,
+            "hair_frac": hair,
+            "dedup_group_id": [f"g{i:03d}" for i in range(n)],
+            "dataset_source_primary": np.where(np.arange(n) % 2 == 0, "isic2017", "interop4074"),
+        }
+    )
+
+    table, payload, boot = compute_covariate_adjusted_success_effects(
+        df,
+        covariate_cols=[
+            "lesion_area_frac",
+            "deltaE_lesion_skin",
+            "sharpness_laplacian_var",
+            "hair_frac",
+        ],
+        include_dataset_source=True,
+        n_resamples=80,
+        seed=13,
+    )
+
+    metrics = set(table["metric"].tolist())
+    assert "adjusted_rd_low_minus_high" in metrics
+    assert "adjusted_rr_low_over_high" in metrics
+    assert "adjusted_or_low_over_high" in metrics
+    assert payload["status"] == "ok"
+    assert "model_spec" in payload
+    assert "component_effects" in payload
+    comp = pd.DataFrame(payload["component_effects"])
+    assert not comp.empty
+    assert "component" in comp.columns
+    assert "or_significant_95ci" in comp.columns
+    assert not boot.empty
+
+
+def test_covadj_single_class_is_handled() -> None:
+    df = pd.DataFrame(
+        {
+            "ita_binary": ["Lower ITA", "Higher ITA", "Lower ITA", "Higher ITA"],
+            "success_t050": [0, 0, 0, 0],
+            "lesion_area_frac": [0.05, 0.06, 0.07, 0.08],
+            "dedup_group_id": ["a", "b", "c", "d"],
+        }
+    )
+    table, payload, boot = compute_covariate_adjusted_success_effects(
+        df,
+        covariate_cols=["lesion_area_frac"],
+        n_resamples=20,
+        seed=3,
+    )
+    row = table[table["metric"] == "adjusted_rd_low_minus_high"].iloc[0]
+    assert float(row["estimate"]) == 0.0
+    assert payload["model_spec"]["fit"]["fit_status"] in {"constant_class", "ok"}
+    assert not boot.empty
+
+
 def test_trend_builders_return_non_empty_frames() -> None:
     df = pd.DataFrame(
         {
@@ -465,6 +549,12 @@ def test_pipeline_writes_required_artifacts(tmp_path: Path) -> None:
     assert (out_dir / "ita_trend_success.csv").exists()
     assert (out_dir / "ita_trend_success.png").exists()
     assert (out_dir / "ita_trend_iou_median.png").exists()
+    assert (out_dir / "covadj_success_t050_effects.csv").exists()
+    assert (out_dir / "covadj_success_t050_effects.json").exists()
+    assert (out_dir / "covadj_model_spec.json").exists()
+    assert (out_dir / "covadj_component_effects.csv").exists()
+    assert (out_dir / "covadj_component_effects.json").exists()
+    assert (out_dir / "covadj_success_t050_bootstrap_samples.parquet").exists()
     assert (out_dir / "threshold_sensitivity_table.csv").exists()
     assert (out_dir / "threshold_sensitivity.png").exists()
     assert (out_dir / "runtime_profile.json").exists()

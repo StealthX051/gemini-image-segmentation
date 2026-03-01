@@ -42,8 +42,13 @@ Current default ITA method configuration:
 - fingerprint write
 - exact/near dedup as configured
 - endpoint effects + trend outputs
+- covariate-adjusted success effects via predictive margins
 - threshold sensitivity + optional sensitivity suite
 - report artifacts
+
+Model-family clarification:
+- continuous trend artifacts (`ita_trend_success.*`, `ita_trend_iou_*`) use continuous `ita_deg`.
+- covariate-adjusted disparity artifacts (`covadj_success_t050_effects.*`, `covadj_component_effects.*`) use binary `ita_binary` (Lower vs Higher ITA at the configured cutoff).
 
 `core`:
 - executes a fast completion-first pass with runtime overrides:
@@ -84,6 +89,12 @@ Enhanced mode writes:
 - `ita_method_note.md`
 - `endpoint_effects_table.csv`
 - `endpoint_effects.json`
+- `covadj_success_t050_effects.csv`
+- `covadj_success_t050_effects.json`
+- `covadj_model_spec.json`
+- `covadj_success_t050_bootstrap_samples.parquet`
+- `covadj_component_effects.csv`
+- `covadj_component_effects.json`
 - `ita_bins_table.csv`
 - `ita_bins_plot.png`
 - `ita_trend_success.csv`

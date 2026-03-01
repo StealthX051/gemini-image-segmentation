@@ -42,6 +42,16 @@ _METRIC_LABELS = {
     "success_odds_ratio_lower_over_higher": "Success odds ratio (Lower/Higher)",
 }
 
+_COVADJ_METRIC_LABELS = {
+    "adjusted_risk_low": "Adjusted success probability (Lower ITA)",
+    "adjusted_risk_high": "Adjusted success probability (Higher ITA)",
+    "adjusted_rd_low_minus_high": "Adjusted risk difference (Lower - Higher)",
+    "adjusted_rr_low_over_high": "Adjusted relative risk (Lower/Higher)",
+    "adjusted_or_low_over_high": "Adjusted odds ratio (Lower/Higher)",
+    "unadjusted_rd_low_minus_high": "Unadjusted risk difference (Lower - Higher)",
+    "rd_attenuation_adj_over_unadj": "RD attenuation (Adjusted/Unadjusted)",
+}
+
 _MODEL_CURVE_LABELS = {
     "ita_only": "ITA only",
     "ita_plus_covariates": "ITA + covariates",
@@ -318,6 +328,18 @@ def _load_enhanced_inputs(fairness_enhanced_dir: Path) -> Dict[str, object]:
         "runtime_profile": _load_json(base / "runtime_profile.json") if (base / "runtime_profile.json").exists() else None,
         "ita_trend_iou_png": base / "ita_trend_iou_median.png" if (base / "ita_trend_iou_median.png").exists() else None,
         "covariates_qc_dir": base / "covariates_qc_plots" if (base / "covariates_qc_plots").exists() else None,
+        "covadj_effects": pd.read_csv(base / "covadj_success_t050_effects.csv")
+        if (base / "covadj_success_t050_effects.csv").exists()
+        else None,
+        "covadj_payload": _load_json(base / "covadj_success_t050_effects.json")
+        if (base / "covadj_success_t050_effects.json").exists()
+        else None,
+        "covadj_model_spec": _load_json(base / "covadj_model_spec.json")
+        if (base / "covadj_model_spec.json").exists()
+        else None,
+        "covadj_components": pd.read_csv(base / "covadj_component_effects.csv")
+        if (base / "covadj_component_effects.csv").exists()
+        else None,
     }
 
     dataset_counts = run_metadata.get("dataset_counts", {}) if isinstance(run_metadata, dict) else {}
@@ -442,6 +464,24 @@ def _table_specs() -> Dict[str, TableSpecEnhanced]:
             stem="tableE4_trend_model_spec",
             title="Table E4. Trend Model Specification",
             description="Trend model settings, covariates used, and reproducibility settings.",
+        ),
+        "E5": TableSpecEnhanced(
+            key="E5",
+            stem="tableE5_covariate_adjusted_success_effects",
+            title="Table E5. Covariate-Adjusted Success Effects",
+            description=(
+                "Predictive-margin adjusted risks and derived effect sizes for success "
+                "(IoU threshold endpoint), with bootstrap confidence intervals."
+            ),
+        ),
+        "E6": TableSpecEnhanced(
+            key="E6",
+            stem="tableE6_adjusted_model_components",
+            title="Table E6. Adjusted Model Component Contributions",
+            description=(
+                "Adjusted logistic-model term contributions shown as odds ratios with 95% "
+                "bootstrap confidence intervals and CI-based significance indicators."
+            ),
         ),
         "ES1": TableSpecEnhanced(
             key="ES1",
@@ -958,6 +998,135 @@ def _table_trend_model_spec(run_metadata: Mapping[str, object], run_summary: Enh
     return pd.DataFrame(rows)
 
 
+def _table_covadj_effects(
+    covadj_df: pd.DataFrame,
+    covadj_payload: Mapping[str, object] | None,
+) -> pd.DataFrame:
+    out = covadj_df.copy()
+    if "metric" not in out.columns:
+        out["metric"] = "unknown_metric"
+    if "estimate" not in out.columns:
+        out["estimate"] = math.nan
+    out["metric_label"] = out["metric"].map(_COVADJ_METRIC_LABELS).fillna(out["metric"])
+    out["estimate_fmt"] = out["estimate"].apply(_fmt_num)
+    out["ci_fmt"] = [
+        _fmt_ci(lo, hi)
+        for lo, hi in zip(
+            out.get("ci_lower", pd.Series(dtype=float)),
+            out.get("ci_upper", pd.Series(dtype=float)),
+        )
+    ]
+    out["ci_method_fmt"] = out.get("ci_method", pd.Series(["NA"] * len(out))).fillna("NA").astype(str)
+    out["significant_fmt"] = "NA"
+    metric_tokens = out["metric"].astype(str).tolist()
+    sig_vals: List[str] = []
+    for idx, metric in enumerate(metric_tokens):
+        lo = pd.to_numeric(out.iloc[idx].get("ci_lower"), errors="coerce")
+        hi = pd.to_numeric(out.iloc[idx].get("ci_upper"), errors="coerce")
+        if not np.isfinite(lo) or not np.isfinite(hi):
+            sig_vals.append("NA")
+            continue
+        if metric.endswith("_rr_low_over_high") or metric.endswith("_or_low_over_high"):
+            sig_vals.append("Yes" if (float(lo) > 1.0 or float(hi) < 1.0) else "No")
+        elif metric.endswith("_risk_low") or metric.endswith("_risk_high"):
+            sig_vals.append("NA")
+        else:
+            sig_vals.append("Yes" if (float(lo) > 0.0 or float(hi) < 0.0) else "No")
+    out["significant_fmt"] = sig_vals
+
+    cols = [
+        "metric_label",
+        "estimate_fmt",
+        "ci_fmt",
+        "significant_fmt",
+        "ci_method_fmt",
+    ]
+    table = out[cols].rename(
+        columns={
+            "metric_label": "metric",
+            "estimate_fmt": "estimate",
+            "ci_fmt": "95% ci",
+            "significant_fmt": "significant (95% ci)",
+            "ci_method_fmt": "ci method",
+        }
+    )
+
+    summary = covadj_payload.get("summary", {}) if isinstance(covadj_payload, dict) else {}
+    if isinstance(summary, dict) and summary:
+        footer = {
+            "metric": "model_summary",
+            "estimate": (
+                f"r_low={_fmt_num(summary.get('r_low_adj'))}; "
+                f"r_high={_fmt_num(summary.get('r_high_adj'))}; "
+                f"rd={_fmt_num(summary.get('rd_adj'))}; "
+                f"rd_ci={_fmt_ci(summary.get('rd_ci_lower'), summary.get('rd_ci_upper'))}"
+            ),
+            "95% ci": "NA",
+            "significant (95% ci)": "NA",
+            "ci method": "json_summary",
+        }
+        table = pd.concat([table, pd.DataFrame([footer])], ignore_index=True)
+
+    return table
+
+
+def _table_covadj_components(component_df: pd.DataFrame) -> pd.DataFrame:
+    out = component_df.copy()
+    if out.empty:
+        return pd.DataFrame(
+            columns=[
+                "component",
+                "odds ratio",
+                "95% ci",
+                "significant (95% ci)",
+                "direction",
+                "scale",
+                "bootstrap p",
+            ]
+        )
+    out["component_fmt"] = out.get("component", pd.Series(dtype=str)).fillna("unknown").astype(str)
+    out["or_fmt"] = out.get("or_estimate", pd.Series(dtype=float)).apply(_fmt_num)
+    out["or_ci_fmt"] = [
+        _fmt_ci(lo, hi)
+        for lo, hi in zip(
+            out.get("or_ci_lower", pd.Series(dtype=float)),
+            out.get("or_ci_upper", pd.Series(dtype=float)),
+        )
+    ]
+    sig = out.get("or_significant_95ci", pd.Series(dtype=str)).fillna("na").astype(str).str.lower()
+    out["sig_fmt"] = sig.map({"yes": "Yes", "no": "No"}).fillna("NA")
+    out["direction_fmt"] = out.get("direction", pd.Series(dtype=str)).fillna("uncertain").astype(str)
+    out["scale_fmt"] = out.get("scale", pd.Series(dtype=str)).fillna("NA").astype(str)
+    out["p_boot_fmt"] = out.get("bootstrap_p_two_sided", pd.Series(dtype=float)).apply(_fmt_num)
+
+    prefer = [
+        "Lower ITA indicator (vs Higher ITA)",
+    ]
+    out["_order"] = out["component_fmt"].apply(lambda x: prefer.index(x) if x in prefer else 10_000)
+    out = out.sort_values(["_order", "component_fmt"]).drop(columns=["_order"])
+    return out[
+        [
+            "component_fmt",
+            "or_fmt",
+            "or_ci_fmt",
+            "sig_fmt",
+            "direction_fmt",
+            "scale_fmt",
+            "p_boot_fmt",
+        ]
+    ].rename(
+        columns={
+            "component_fmt": "component",
+            "or_fmt": "odds ratio",
+            "or_ci_fmt": "95% ci",
+            "sig_fmt": "significant (95% ci)",
+            "direction_fmt": "direction",
+            "scale_fmt": "scale",
+            "p_boot_fmt": "bootstrap p",
+        }
+    )
+
+
 def _table_runtime_profile(run_metadata: Mapping[str, object], runtime_profile: Mapping[str, object] | None) -> pd.DataFrame:
     rows: List[Dict[str, object]] = []
 
@@ -1026,6 +1195,9 @@ def _build_sections(
     run_metadata: Mapping[str, object],
     endpoint_payload: Mapping[str, object],
     effects_df: pd.DataFrame,
+    covadj_df: pd.DataFrame | None,
+    covadj_components_df: pd.DataFrame | None,
+    covadj_payload: Mapping[str, object] | None,
     include_supplement: bool,
     available_supp_figures: Sequence[str],
     available_supp_tables: Sequence[str],
@@ -1037,6 +1209,47 @@ def _build_sections(
     rd_row = effects_df[effects_df["metric"] == "success_risk_difference_lower_minus_higher"]
     med_est = _fmt_num(float(med_row.iloc[0]["estimate"])) if not med_row.empty else "NA"
     rd_est = _fmt_num(float(rd_row.iloc[0]["estimate"])) if not rd_row.empty else "NA"
+    covadj_available = isinstance(covadj_df, pd.DataFrame) and not covadj_df.empty
+    covadj_components_available = isinstance(covadj_components_df, pd.DataFrame) and not covadj_components_df.empty
+
+    covadj_summary_line = "Covariate-adjusted success model outputs were not available in this run/stage."
+    if covadj_available and "metric" in covadj_df.columns:
+        rd_adj_row = covadj_df[covadj_df["metric"] == "adjusted_rd_low_minus_high"]
+        rr_adj_row = covadj_df[covadj_df["metric"] == "adjusted_rr_low_over_high"]
+        if not rd_adj_row.empty:
+            rd_val = _fmt_num(rd_adj_row.iloc[0].get("estimate"))
+            rd_ci = _fmt_ci(rd_adj_row.iloc[0].get("ci_lower"), rd_adj_row.iloc[0].get("ci_upper"))
+            covadj_summary_line = f"Covariate-adjusted success RD (Lower - Higher): {rd_val} ({rd_ci})."
+        if not rr_adj_row.empty:
+            rr_val = _fmt_num(rr_adj_row.iloc[0].get("estimate"))
+            rr_ci = _fmt_ci(rr_adj_row.iloc[0].get("ci_lower"), rr_adj_row.iloc[0].get("ci_upper"))
+            covadj_summary_line += f" Adjusted RR: {rr_val} ({rr_ci})."
+
+    covadj_interpret_line = ""
+    summary_obj = covadj_payload.get("summary", {}) if isinstance(covadj_payload, dict) else {}
+    if isinstance(summary_obj, dict) and summary_obj:
+        rd_lo = summary_obj.get("rd_ci_lower")
+        rd_hi = summary_obj.get("rd_ci_upper")
+        rd_lo_f = pd.to_numeric(rd_lo, errors="coerce")
+        rd_hi_f = pd.to_numeric(rd_hi, errors="coerce")
+        if np.isfinite(rd_lo_f) and np.isfinite(rd_hi_f):
+            if float(rd_lo_f) > 0.0 or float(rd_hi_f) < 0.0:
+                covadj_interpret_line = (
+                    "Adjusted disparity signal persisted by RD criterion (95% CI excludes 0); "
+                    "interpret descriptively under proxy/non-causal framing."
+                )
+            else:
+                covadj_interpret_line = (
+                    "Adjusted RD 95% CI included 0, indicating attenuation/uncertainty after covariate adjustment "
+                    "under this model specification."
+                )
+    primary_paragraphs = [
+        f"Primary effect estimates showed median IoU difference (lower minus higher) of {med_est} and success risk difference of {rd_est}.",
+        "Confidence intervals and supporting nonparametric test p-values are reported alongside each endpoint.",
+        covadj_summary_line,
+    ]
+    if covadj_interpret_line:
+        primary_paragraphs.append(covadj_interpret_line)
 
     sensitivity_text = (
         "Supplementary sensitivity analyses were generated and are included below."
@@ -1115,12 +1328,9 @@ def _build_sections(
         ),
         ReportSection(
             title="Primary Results",
-            paragraphs=[
-                f"Primary effect estimates showed median IoU difference (lower minus higher) of {med_est} and success risk difference of {rd_est}.",
-                "Confidence intervals and supporting nonparametric test p-values are reported alongside each endpoint.",
-            ],
+            paragraphs=primary_paragraphs,
             figure_keys=["E2"],
-            table_keys=["E2", "E3"],
+            table_keys=["E2", "E3"] + (["E5"] if covadj_available else []) + (["E6"] if covadj_components_available else []),
         ),
         ReportSection(
             title="Trend Interpretation",
@@ -1485,6 +1695,9 @@ def generate_fairness_enhanced_artifacts(
     run_metadata = loaded["run_metadata"]
     run_summary = loaded["run_summary"]
     optional = loaded["optional"]
+    covadj_df = optional.get("covadj_effects")
+    covadj_payload = optional.get("covadj_payload")
+    covadj_components_df = optional.get("covadj_components")
 
     label_text = endpoint_payload.get("label_text", {}) if isinstance(endpoint_payload, dict) else {}
     proxy_caption = str(label_text.get("figure_caption_snippet", f"{_PROXY_FALLBACK}; {_BINARY_FALLBACK}."))
@@ -1531,6 +1744,12 @@ def generate_fairness_enhanced_artifacts(
 
     table_e4_df = _table_trend_model_spec(run_metadata, run_summary)
     tables["E4"] = _write_table_artifacts(table_e4_df, spec=table_specs["E4"], output_dir=tables_dir)
+    if isinstance(covadj_df, pd.DataFrame) and not covadj_df.empty:
+        table_e5_df = _table_covadj_effects(covadj_df, covadj_payload if isinstance(covadj_payload, dict) else None)
+        tables["E5"] = _write_table_artifacts(table_e5_df, spec=table_specs["E5"], output_dir=tables_dir)
+    if isinstance(covadj_components_df, pd.DataFrame) and not covadj_components_df.empty:
+        table_e6_df = _table_covadj_components(covadj_components_df)
+        tables["E6"] = _write_table_artifacts(table_e6_df, spec=table_specs["E6"], output_dir=tables_dir)
 
     if include_supplement:
         dedup_df = optional.get("dedup_sensitivity")
@@ -1568,6 +1787,9 @@ def generate_fairness_enhanced_artifacts(
         run_metadata=run_metadata,
         endpoint_payload=endpoint_payload,
         effects_df=effects_df,
+        covadj_df=covadj_df if isinstance(covadj_df, pd.DataFrame) else None,
+        covadj_components_df=covadj_components_df if isinstance(covadj_components_df, pd.DataFrame) else None,
+        covadj_payload=covadj_payload if isinstance(covadj_payload, dict) else None,
         include_supplement=include_supplement,
         available_supp_figures=available_supp_figs,
         available_supp_tables=available_supp_tables,

@@ -21,6 +21,7 @@ import pandas as pd
 from PIL import Image
 
 from .config import EnhancedFairnessConfig, config_to_dict
+from .covadj import compute_covariate_adjusted_success_effects
 from .covariates import compute_covariates
 from .dataset_index import build_or_load_source_index
 from .dedup import apply_exact_dedup, apply_near_dedup, phash64_hex, sha256_file
@@ -1742,6 +1743,7 @@ def run_enhanced_fairness_audit(
     warnings_out: List[str] = []
     augment_requested = set(str(c).strip() for c in (augment_columns or []) if str(c).strip())
     trend_covariates_used: List[str] = []
+    covadj_payload: Dict[str, object] = {}
 
     try:
         if stage in {"all", "core"}:
@@ -1907,6 +1909,57 @@ def run_enhanced_fairness_audit(
             )
             _profile_stage_end(runtime_profile, stage_name="trend_models")
 
+            _profile_stage_start(runtime_profile, stage_name="covariate_adjustment")
+            covadj_resamples = max(200, min(1000, int(effective_cfg.bootstrap.n_resamples)))
+            covadj_include_dataset = bool(
+                "dataset_source_primary" in analysis_valid.columns
+                and analysis_valid["dataset_source_primary"].nunique(dropna=True) > 1
+            )
+            covadj_table, covadj_payload, covadj_boot = compute_covariate_adjusted_success_effects(
+                analysis_valid,
+                outcome_col="success_t050",
+                exposure_col="ita_binary",
+                lower_label="Lower ITA",
+                higher_label="Higher ITA",
+                covariate_cols=cov_cols,
+                include_dataset_source=covadj_include_dataset,
+                dataset_source_col="dataset_source_primary",
+                resample_unit_col=(
+                    "dedup_group_id"
+                    if "dedup_group_id" in analysis_valid.columns
+                    else ("image_id" if "image_id" in analysis_valid.columns else None)
+                ),
+                n_resamples=covadj_resamples,
+                seed=int(effective_cfg.bootstrap.seed) + 700,
+                c_value=1_000_000.0,
+                max_iter=4000,
+            )
+            covadj_table.to_csv(out_dir / "covadj_success_t050_effects.csv", index=False)
+            write_json(out_dir / "covadj_success_t050_effects.json", covadj_payload)
+            write_json(
+                out_dir / "covadj_model_spec.json",
+                dict(covadj_payload.get("model_spec", {})),
+            )
+            covadj_components = covadj_payload.get("component_effects", []) if isinstance(covadj_payload, dict) else []
+            if isinstance(covadj_components, list) and covadj_components:
+                pd.DataFrame(covadj_components).to_csv(
+                    out_dir / "covadj_component_effects.csv",
+                    index=False,
+                )
+                write_json(
+                    out_dir / "covadj_component_effects.json",
+                    {
+                        "status": str(covadj_payload.get("status", "unknown")) if isinstance(covadj_payload, dict) else "unknown",
+                        "component_effects": covadj_components,
+                    },
+                )
+            if isinstance(covadj_boot, pd.DataFrame) and not covadj_boot.empty:
+                covadj_boot.to_parquet(
+                    out_dir / "covadj_success_t050_bootstrap_samples.parquet",
+                    index=False,
+                )
+            _profile_stage_end(runtime_profile, stage_name="covariate_adjustment")
+
             write_ita_bins(primary_df, out_dir)
             write_covariate_qc(primary_df, paths["covariates_qc"])
             write_dedup_outputs(
@@ -2067,6 +2120,9 @@ def run_enhanced_fairness_audit(
                 "success_threshold_arg": float(success_threshold),
                 "augment_columns": sorted(augment_requested),
                 "trend_covariates_used": list(trend_covariates_used),
+                "covadj_success_t050": dict(covadj_payload.get("summary", {}))
+                if isinstance(covadj_payload, dict)
+                else {},
                 "warnings": list(warnings_out),
                 "updated_at": _now_iso(),
             }
