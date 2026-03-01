@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v9` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity + IMA++ STAPLE-first canonical GT preparation with retained multi-mask sensitivity workflow + IMA++ acquisition/prep hardening for live Zenodo resolution, threaded API downloads, and split-manifest compatibility).
+- `posthoc_v13` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity + IMA++ STAPLE-first canonical GT preparation with retained multi-mask sensitivity workflow + IMA++ acquisition/prep hardening for live Zenodo resolution, threaded API downloads, and split-manifest compatibility + enhanced dermoscopy fairness audit v2 with legacy-safe mode routing, SHA/pHash dedup, canonical analysis frame, trend/sensitivity artifacts, and proxy-language templating + enhanced fairness lesion-area/binarization correctness hardening for unit-scale GT masks and full-resolution lesion fraction retention + enhanced ITA methodology controls/provenance notes with optional legacy-like ITA sensitivity output for discrepancy analysis + enhanced-default ITA region reset to global non-lesional with aggregated L*/b* ITA and region-aware proxy labeling).
 
 ## Entries
 
@@ -98,6 +98,69 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: hardened IMA++ preparation operations by (1) pinning live Zenodo record file defaults, (2) adding threaded ISIC API download mode with retry/backoff + resume-safe skip-existing behavior, (3) ingesting optional `seg_metadata_multiannotator_subset.csv`, and (4) fixing split-manifest generation to support split CSVs with `image` column values (including case/extension normalization).
 - Impact: improves large-scale acquisition reliability and reproducibility of prepared dataset artifacts without changing canonical GT policy, segmentation metrics, or sensitivity-analysis definitions.
 - Code anchors: `scripts/prepare_ima_plusplus.py`, `tests/test_prepare_ima_plusplus.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_HANDOFF.md`.
+
+### MTH-POSTHOC-013
+- Date: 2026-02-26.
+- Status: active.
+- Summary: added fairness audit v2 as an opt-in CLI mode (`fairness --audit-mode enhanced`) while preserving legacy fairness as default; the enhanced mode adds SHA/pHash deduplication, source-index sidecar integration across interop ISIC and IMA++, canonical `analysis_frame.parquet`, endpoint effect-size reporting, continuous ITA trend modeling, and sensitivity artifacts.
+- Impact: strengthens methodological defensibility for dermoscopy disparity analyses without breaking existing legacy fairness outputs or figure-generation workflows.
+- Code anchors: `src/gemini_segmentation/cli.py`, `src/gemini_segmentation/fairness_enhanced/`, `configs/fairness_enhanced.yaml`, `tests/test_cli.py`, `tests/test_fairness_enhanced.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
+
+### MTH-POSTHOC-014
+- Date: 2026-02-26.
+- Status: active.
+- Summary: hardened enhanced fairness trend/dedup internals for Windows stability by removing crash-prone native SciPy backends in two paths: pHash DCT now uses a NumPy orthonormal DCT implementation, and IoU quantile trend fitting now uses deterministic IRLS-style quantile fitting (pinball-loss approximation via asymmetric weighted least squares) instead of `QuantileRegressor` with HiGHS; success-trend logistic fitting was set to `solver=liblinear` to avoid SciPy L-BFGS deprecation noise during testing; enhanced fairness preprocessing now honors `--workers` with thread-safe per-image parallelism and deterministic row ordering.
+- Impact: preserves enhanced fairness artifact contracts and trend outputs while preventing access-violation failures observed during test runs on Windows Conda environments, reducing non-actionable warning noise, and enabling faster enhanced runs with controlled worker concurrency.
+- Code anchors: `src/gemini_segmentation/fairness_enhanced/dedup.py`, `src/gemini_segmentation/fairness_enhanced/trends.py`, `src/gemini_segmentation/fairness_enhanced/reporting.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `src/gemini_segmentation/cli.py`, `tests/test_cli.py`.
+
+### MTH-POSTHOC-015
+- Date: 2026-02-27.
+- Status: active.
+- Summary: added runtime troubleshooting hardening for enhanced fairness with staged execution controls (`all|core|sensitivity`), resumable extraction checkpoints (`features_part_*.parquet` + `features_manifest.json`), bounded in-flight worker scheduling, stage-level runtime profiling (`runtime_profile.json`), and CLI/config runtime overrides for stage/resume/checkpoint cadence.
+- Impact: improves completion reliability and restartability on large 4k-image runs, reduces memory-pressure risk from unbounded future submission, and enables fast core-first workflows before expensive sensitivity passes while preserving legacy mode behavior.
+- Code anchors: `src/gemini_segmentation/cli.py`, `src/gemini_segmentation/fairness_enhanced/config.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `configs/fairness_enhanced.yaml`, `tests/test_cli.py`, `tests/test_fairness_enhanced.py`, `README.md`, `docs/FAIRNESS_ENHANCED.md`.
+
+### MTH-POSTHOC-016
+- Date: 2026-02-28.
+- Status: active.
+- Summary: refactored enhanced fairness extraction for efficiency while preserving fairness-method rigor: ROI/downsampled ITA computation with sampled-pixel Lab conversion (no full-frame Lab arrays), feature-profile gating (`balanced|full|minimal`), sensitivity-oriented pHash computation with `augment` backfill stage, consolidated feature caches (`metrics/ita_features/covariates/fingerprints`), and memory-aware worker auto-capping.
+- Impact: substantially reduces memory pressure and paging risk on large dermoscopy runs, preserves legacy fairness behavior by default, keeps enhanced artifact/schema compatibility, and enables targeted feature augmentation without rerunning full core extraction.
+- Code anchors: `src/gemini_segmentation/fairness_enhanced/ita.py`, `src/gemini_segmentation/fairness_enhanced/covariates.py`, `src/gemini_segmentation/fairness_enhanced/config.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `src/gemini_segmentation/cli.py`, `configs/fairness_enhanced.yaml`, `tests/test_cli.py`, `tests/test_fairness_enhanced.py`, `docs/FAIRNESS_ENHANCED.md`.
+
+### MTH-POSTHOC-017
+- Date: 2026-02-28.
+- Status: active.
+- Summary: added an enhanced fairness manuscript artifact generator (`paper/figures_enhanced.py`) that consumes `fairness_enhanced/` outputs and renders E-numbered main/supplement figures and tables plus a unified narrative report in `md|html|pdf|docx`.
+- Impact: enables publication-oriented reporting for enhanced fairness analyses (cohort accountability, effect-size forests, trend interpretation, threshold/sensitivity summaries) without changing legacy fairness figure/table workflows or fairness metric computations.
+- Code anchors: `src/gemini_segmentation/paper/figures_enhanced.py`, `src/gemini_segmentation/paper/__init__.py`, `tests/test_paper_figures_enhanced.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
+
+### MTH-POSTHOC-018
+- Date: 2026-02-28.
+- Status: active.
+- Summary: corrected enhanced fairness lesion-area derivation robustness by (1) making GT mask binarization tolerant to unit-scale masks (`0/1` and `[0,1]`), and (2) forcing `lesion_area_frac` in `analysis_frame.parquet` to remain the full-resolution GT-mask fraction (preventing ROI/downsample covariate internals from overwriting it).
+- Impact: prevents spurious near-zero lesion-area distributions when datasets store binary masks as unit-scale values, and preserves manuscript-meaningful lesion-size covariate semantics tied to full-image GT area.
+- Code anchors: `src/gemini_segmentation/fairness_enhanced/ita.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `tests/test_fairness_enhanced.py`.
+
+### MTH-POSTHOC-019
+- Date: 2026-02-28.
+- Status: active.
+- Summary: added explicit enhanced ITA-method controls and provenance outputs: configurable ITA region strategy (`perilesional_ring` vs `global_nonlesion`), estimator (`aggregated_lab` vs `pixelwise_median`), robust aggregation (`median|mean|trimmed_mean_sd`), optional L* percentile windowing, and run-level ITA method note artifacts (`ita_method_note.json/.md`); optional legacy-like ITA sensitivity columns were added to `analysis_frame.parquet` for side-by-side comparability checks.
+- Impact: improves manuscript defensibility and reproducibility of proxy-stratification definitions, and enables transparent diagnosis of legacy-vs-enhanced ITA distribution shifts without altering legacy fairness behavior.
+- Code anchors: `src/gemini_segmentation/fairness_enhanced/config.py`, `src/gemini_segmentation/fairness_enhanced/ita.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `configs/fairness_enhanced.yaml`, `docs/FAIRNESS_ENHANCED.md`, `tests/test_fairness_enhanced.py`.
+
+### MTH-POSTHOC-020
+- Date: 2026-02-28.
+- Status: active.
+- Summary: switched the enhanced ITA default region strategy back to `global_nonlesion` while keeping the improved default ITA estimator (`aggregated_lab` with robust aggregation), and made proxy-language text region-aware so generated captions/method notes match the configured region strategy.
+- Impact: restores legacy-aligned non-lesional sampling as the enhanced default for manuscript comparability, while retaining methodologically explicit aggregation controls and run-level ITA provenance artifacts.
+- Code anchors: `src/gemini_segmentation/fairness_enhanced/config.py`, `configs/fairness_enhanced.yaml`, `src/gemini_segmentation/fairness_enhanced/labels.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `tests/test_fairness_enhanced.py`, `docs/FAIRNESS_ENHANCED.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
+
+### MTH-POSTHOC-021
+- Date: 2026-02-28.
+- Status: active.
+- Summary: consolidated enhanced fairness documentation into an implementation-aligned methods specification (`docs/FAIRNESS_ENHANCED_METHODS.md`) and synchronized operational/manuscript docs to the current enhanced defaults and stage behavior.
+- Impact: improves manuscript reproducibility and reporting consistency without changing fairness computation logic or output schemas.
+- Code anchors: `docs/FAIRNESS_ENHANCED_METHODS.md`, `docs/FAIRNESS_ENHANCED.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

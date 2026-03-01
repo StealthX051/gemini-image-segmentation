@@ -1202,6 +1202,8 @@ def test_command_fairness_invokes_analyze_with_expected_arguments(tmp_path, monk
         dataset_root=str(dataset_root),
         run_dir=str(run_dir),
         manifest=None,
+        audit_mode="legacy",
+        enhanced_config=None,
         bootstrap_method="abc",
         bootstrap_resamples=10,
         sample_size=None,
@@ -1273,6 +1275,8 @@ def test_command_fairness_raises_when_metrics_missing(tmp_path, monkeypatch):
         dataset_root=str(dataset_root),
         run_dir=str(run_dir),
         manifest=None,
+        audit_mode="legacy",
+        enhanced_config=None,
         bootstrap_method=None,
         bootstrap_resamples=None,
         sample_size=None,
@@ -1297,6 +1301,194 @@ def test_fairness_parser_accepts_workers_flag() -> None:
         ]
     )
     assert args.workers == 10
+
+
+def test_fairness_parser_accepts_enhanced_flags() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "fairness",
+            "dataset",
+            "/tmp/dataset",
+            "/tmp/run",
+            "--audit-mode",
+            "enhanced",
+            "--enhanced-config",
+            "configs/fairness_enhanced.yaml",
+            "--enhanced-stage",
+            "core",
+            "--enhanced-feature-profile",
+            "balanced",
+            "--enhanced-augment-columns",
+            "phash64_hex,specular_frac",
+            "--no-enhanced-resume",
+            "--enhanced-checkpoint-every",
+            "111",
+            "--no-enhanced-workers-auto",
+        ]
+    )
+    assert args.audit_mode == "enhanced"
+    assert args.enhanced_config == "configs/fairness_enhanced.yaml"
+    assert args.enhanced_stage == "core"
+    assert args.enhanced_feature_profile == "balanced"
+    assert args.enhanced_augment_columns == "phash64_hex,specular_frac"
+    assert args.enhanced_resume is False
+    assert args.enhanced_checkpoint_every == 111
+    assert args.enhanced_workers_auto is False
+
+
+def test_command_fairness_enhanced_routes_to_new_pipeline(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    masks_dir = run_dir / "masks"
+    masks_dir.mkdir()
+    metrics_path = run_dir / "metrics.csv"
+    metrics_path.write_text("image_name,iou,dice,success\nimg1.png,0.5,0.6,True\n")
+
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+    manifest_path = dataset_root / "manifest.txt"
+    manifest_path.write_text("img1.png\n")
+
+    expected_pairs = [("img1.png", masks_dir / "img1.png")]
+
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "discover_dataset",
+        lambda *_: SimpleNamespace(manifest_path=manifest_path, masks_dir=masks_dir),
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"], "read_manifest", lambda *_, **__: ["img1.png"]
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "sample_images",
+        lambda images, sample_size: images,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "paired_masks",
+        lambda images, masks_dir_arg: expected_pairs,
+    )
+
+    analyze_mock = mock.Mock()
+    monkeypatch.setattr(sys.modules["gemini_segmentation.cli"], "analyze_fairness", analyze_mock)
+
+    cfg_mock = object()
+    load_cfg_mock = mock.Mock(return_value=cfg_mock)
+    run_mock = mock.Mock(return_value={"out_dir": str(run_dir / "fairness_enhanced"), "analysis_rows": 1})
+    monkeypatch.setattr(sys.modules["gemini_segmentation.cli"], "load_enhanced_config", load_cfg_mock)
+    monkeypatch.setattr(sys.modules["gemini_segmentation.cli"], "run_enhanced_fairness_audit", run_mock)
+
+    args = argparse.Namespace(
+        dataset_name="dataset",
+        dataset_root=str(dataset_root),
+        run_dir=str(run_dir),
+        manifest=None,
+        audit_mode="enhanced",
+        enhanced_config=None,
+        enhanced_stage=None,
+        enhanced_feature_profile=None,
+        enhanced_augment_columns=None,
+        enhanced_resume=None,
+        enhanced_checkpoint_every=None,
+        enhanced_workers_auto=None,
+        bootstrap_method="bca",
+        bootstrap_resamples=100,
+        sample_size=None,
+        workers=1,
+        success_threshold=0.5,
+    )
+
+    command_fairness(args)
+
+    assert analyze_mock.call_count == 0
+    assert load_cfg_mock.call_count == 1
+    assert run_mock.call_count == 1
+    called = run_mock.call_args.kwargs
+    assert called["image_mask_pairs"] == expected_pairs
+    assert called["run_dir"] == run_dir
+    assert called["cfg"] is cfg_mock
+    assert called["workers"] == 1
+
+
+def test_command_fairness_enhanced_applies_runtime_overrides(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    masks_dir = run_dir / "masks"
+    masks_dir.mkdir()
+    metrics_path = run_dir / "metrics.csv"
+    metrics_path.write_text("image_name,iou,dice,success\\nimg1.png,0.5,0.6,True\\n")
+
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+    manifest_path = dataset_root / "manifest.txt"
+    manifest_path.write_text("img1.png\\n")
+
+    expected_pairs = [("img1.png", masks_dir / "img1.png")]
+
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "discover_dataset",
+        lambda *_: SimpleNamespace(manifest_path=manifest_path, masks_dir=masks_dir),
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"], "read_manifest", lambda *_, **__: ["img1.png"]
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "sample_images",
+        lambda images, sample_size: images,
+    )
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "paired_masks",
+        lambda images, masks_dir_arg: expected_pairs,
+    )
+
+    cfg_mock = SimpleNamespace(
+        runtime=SimpleNamespace(stage="all", resume=True, checkpoint_every=250, workers_auto=True),
+        features=SimpleNamespace(profile="balanced"),
+    )
+    load_cfg_mock = mock.Mock(return_value=cfg_mock)
+    run_mock = mock.Mock(return_value={"out_dir": str(run_dir / "fairness_enhanced"), "analysis_rows": 1})
+    monkeypatch.setattr(sys.modules["gemini_segmentation.cli"], "load_enhanced_config", load_cfg_mock)
+    monkeypatch.setattr(sys.modules["gemini_segmentation.cli"], "run_enhanced_fairness_audit", run_mock)
+    monkeypatch.setattr(
+        sys.modules["gemini_segmentation.cli"],
+        "analyze_fairness",
+        mock.Mock(),
+    )
+
+    args = argparse.Namespace(
+        dataset_name="dataset",
+        dataset_root=str(dataset_root),
+        run_dir=str(run_dir),
+        manifest=None,
+        audit_mode="enhanced",
+        enhanced_config=None,
+        enhanced_stage="core",
+        enhanced_feature_profile="full",
+        enhanced_augment_columns="phash64_hex",
+        enhanced_resume=False,
+        enhanced_checkpoint_every=111,
+        enhanced_workers_auto=False,
+        bootstrap_method="bca",
+        bootstrap_resamples=100,
+        sample_size=None,
+        workers=2,
+        success_threshold=0.5,
+    )
+
+    command_fairness(args)
+
+    assert cfg_mock.runtime.stage == "core"
+    assert cfg_mock.runtime.resume is False
+    assert cfg_mock.runtime.checkpoint_every == 111
+    assert cfg_mock.runtime.workers_auto is False
+    assert cfg_mock.features.profile == "full"
+    called = run_mock.call_args.kwargs
+    assert called["augment_columns"] == ["phash64_hex"]
 
 
 class ImaPlusPlusCommandSegmentTests(TestCase):

@@ -49,6 +49,8 @@ This document keeps implementation changes aligned with:
   - fall back to single annotator masks only when exactly one annotator mask exists for the image.
 - For IMA++, all masks and per-mask metadata (annotator/tool/skill labels when provided) should be retained for optional sensitivity analyses; canonical-GT evaluation should not discard this provenance.
 - Replicate runs should be configured with explicit per-process throttling when account limits are tight (for example `workers=1`, `rate_limit>=12s` in smoke validation) so provider throttling does not confound method validation.
+- Fairness CLI must preserve legacy reproducibility by default (`fairness --audit-mode legacy`) and only execute fairness-v2 logic when explicitly requested (`--audit-mode enhanced`).
+- Fairness-v2 text output must use proxy language (for example “image-derived non-lesional skin tone proxy (ITA)” or “image-derived perilesional skin tone proxy (ITA)” plus “lower-ITA vs higher-ITA strata”) and avoid identity-language overreach in auto-generated captions/tables.
 
 ## Reproducibility And Reporting
 - Keep `run_config.json` comprehensive for post hoc analyses and manuscript traceability.
@@ -61,7 +63,10 @@ This document keeps implementation changes aligned with:
   - model-vs-MV consensus metrics,
   - model-vs-annotator metrics and per-image dispersion summaries (mean/median/IQR/min/max),
   - stratified summaries by annotator tool/skill metadata when available.
+- Enhanced fairness mode (`fairness --audit-mode enhanced`) writes expanded artifacts to `<run_dir>/fairness_enhanced/` including canonical analysis frame, dedup maps/reports, endpoint effect tables, trend curves, and sensitivity analyses; staged execution (`--enhanced-stage all|core|sensitivity|augment`), feature-profile gating, and resumable checkpointing are operational/runtime controls and do not alter legacy fairness semantics. Legacy fairness outputs remain under `<run_dir>/fairness/`.
+- Manuscript-ready enhanced fairness method text should be sourced from `docs/FAIRNESS_ENHANCED_METHODS.md` to keep claims aligned with implementation details (region strategy, ITA estimator, covariates, trend models, and sensitivity definitions).
 - Fairness paper artifact generation (`python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>`) may emit both combined Figure 2 and standalone panel exports (`figure2_panel_a` to `figure2_panel_d` in PNG/PDF/SVG); this is a presentation/export change only and does not alter fairness computations.
+- Enhanced fairness manuscript artifact generation (`python -m gemini_segmentation.paper.figures_enhanced --fairness-enhanced-dir <.../fairness_enhanced>`) emits E-numbered figure/table assets plus a narrative report (`md|html|pdf|docx`) while preserving proxy-language/non-causal framing and leaving legacy Figure 2/Table 4 tooling unchanged.
 - When method semantics change, update `src/gemini_segmentation/prompts.py`.
 - When method semantics change, update `configs/prompts.yaml`.
 - When method semantics change, update relevant tests in `tests/test_prompts.py` and `tests/test_cli.py`.

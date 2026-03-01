@@ -8,7 +8,11 @@
 4. Provider adapter performs inference (`src/gemini_segmentation/models.py`) with retry policy applied in CLI orchestration (`max_retries`).
 5. Responses are parsed into normalized masks and persisted (`src/gemini_segmentation/io.py`).
 6. IoU/Dice/summary metrics are updated incrementally (`src/gemini_segmentation/metrics.py`) with single-channel normalization for RGB/RGBA mask inputs.
-7. Optional fairness analysis consumes saved masks/metrics (`src/gemini_segmentation/fairness.py`), with configurable fairness preprocessing concurrency via `fairness --workers`.
+7. Optional fairness analysis consumes saved masks/metrics:
+   - legacy mode uses `src/gemini_segmentation/fairness.py`,
+   - enhanced mode uses `src/gemini_segmentation/fairness_enhanced/` and writes expanded artifacts under `fairness_enhanced/`.
+   - enhanced defaults currently use global non-lesional ITA regions with aggregated Lab ITA estimation (configurable), plus exact dedup as the primary dedup mode.
+   Fairness preprocessing concurrency remains configurable via `fairness --workers`, with optional memory-aware worker auto-capping in enhanced mode.
 8. Optional batch orchestration composes multiple `segment`/`fairness` CLI calls from config matrices (`src/gemini_segmentation/batch.py`) and mirrors child command output to terminal + per-job logs.
 
 ## Manuscript Alignment
@@ -38,7 +42,8 @@
 - `io.py`: JSON parsing, base64 encoding/decoding, overlay rendering, JSONL persistence.
 - `metrics.py`: IoU/Dice, bootstrap CI, rolling summaries.
 - `fairness.py`: ITA extraction, tone grouping, statistical testing outputs.
-- `paper/`: manuscript-ready tables and figures (including combined and panel-level fairness figure exports via `paper/figures.py`).
+- `fairness_enhanced/`: enhanced fairness v2 pipeline (source indexing, feature-profile-gated extraction, configurable ITA region strategy with aggregated Lab ITA estimation, covariate extraction, SHA/pHash dedup, canonical analysis frame, effect sizes, trends, sensitivity artifacts, staged execution including `augment`, runtime profiling, and resumable extraction checkpoints).
+- `paper/`: manuscript-ready tables and figures (legacy fairness Figure 2/Table 4 via `paper/figures.py`, enhanced fairness manuscript artifacts via `paper/figures_enhanced.py`, plus comparison/best-case utilities).
 
 ## Extension Points
 - New provider: implement adapter in `models.py`, keep return contract stable, wire in `cli.py`.
@@ -47,6 +52,7 @@
 - IMA++ integration pattern: keep core CLI ingestion unchanged and adapt source metadata/masks/images into `images/` + `masks/` with a prep script, while retaining richer mask metadata in sidecar files for optional analyses.
 - IMA++ prep download backends: API mode (default) performs threaded ISIC API v2 image downloads with retry/backoff + skip-existing resume semantics; template mode executes user-specified CLI command templates.
 - New analysis metric: add metric computation in `metrics.py`, propagate to CSV/summary and tests.
+- Enhanced fairness extensions: prefer adding new disparity/tone-proxy logic under `fairness_enhanced/` while keeping `fairness.py` stable for legacy reproducibility.
 - New benchmark study matrix: add/update YAML under `configs/benchmarks/` and validate orchestration behavior with `tests/test_batch.py`.
 
 ## Operational Notes

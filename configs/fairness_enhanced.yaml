@@ -1,0 +1,91 @@
+# Enhanced dermoscopy fairness audit defaults (legacy-safe; opt-in mode)
+allow_image_id_fallback: false
+duplicate_examples_limit: 6
+refresh_source_index: false
+
+sources:
+  interop_root: results/interop/isic2017_cli_compat_4074
+  isic2016_root: data/ISIC_2016_Part1
+  isic2017_root: data/ISIC_2017_Part1
+  isic2018_root: data/ISIC_2018_Part1
+  ima_plusplus_root: data/IMAplusplus_cli
+
+dedup:
+  mode: exact
+  near_hamming_threshold: 6
+  include_near_map: true
+
+ita:
+  binary_cutoff: 28.0
+  binary_strategy: fixed
+  region_strategy: global_nonlesion
+  estimator: aggregated_lab
+  aggregation_stat: median
+  trim_std: 1.0
+  apply_lstar_window: false
+  lstar_window_low_pct: 5.0
+  lstar_window_high_pct: 95.0
+  include_legacy_like_sensitivity: false
+  ring_outer_frac_min_dim: 0.02
+  ring_inner_frac_min_dim: 0.0
+  ring_min_pixels: 200
+  ring_min_area_frac: 0.02
+  eps: 1.0e-6
+  use_field_mask: true
+  field_intensity_floor: 5
+  very_light_threshold: 55.0
+  light_threshold: 41.0
+  intermediate_threshold: 28.0
+  tan_threshold: 10.0
+  brown_threshold: -30.0
+
+covariates:
+  enabled: true
+  deltae_method: ciede2000
+  valid_pixels_base: field
+  hair_threshold_quantile: 0.95
+  specular_lstar_cutoff: 92.0
+  specular_chroma_cutoff: 8.0
+
+features:
+  profile: balanced
+  compute_phash_in_core: false
+  hair_mode: lite
+  include_specular_in_core: false
+  roi_max_dim: 768
+  hair_max_dim: 512
+  ring_outer_radius_cap: 64
+  ring_inner_radius_cap: 24
+  ring_roi_pad_px: 24
+
+bootstrap:
+  n_resamples: 5000
+  method: bca
+  fallback_method: percentile
+  seed: 42
+
+trends:
+  enabled: true
+  knots: 5
+  degree: 3
+  bootstrap_resamples: 200
+  quantile: 0.5
+  quantile_alpha: 0.001
+
+sensitivity:
+  enabled: true
+  success_thresholds: [0.30, 0.40, 0.50, 0.60]
+  include_near_dedup: true
+  include_dependence: true
+  include_mask_source: true
+
+runtime:
+  stage: all
+  resume: true
+  checkpoint_every: 50
+  max_inflight_tasks: 0
+  workers_auto: true
+  memory_target_frac: 0.65
+  per_worker_estimate_mb_balanced: 1200
+  per_worker_estimate_mb_full: 1800
+  per_worker_estimate_mb_minimal: 800

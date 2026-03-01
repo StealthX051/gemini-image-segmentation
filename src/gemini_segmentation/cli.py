@@ -31,6 +31,7 @@ from .fairness import (
     write_fairness_statistics,
     write_fairness_summary,
 )
+from .fairness_enhanced import load_enhanced_config, run_enhanced_fairness_audit
 from .cache import DiskRequestCache, build_request_cache_key
 from .io import (
     encode_mask_to_b64,
@@ -860,6 +861,49 @@ def command_fairness(args: argparse.Namespace) -> None:
             logging.info("Fairness progress: %s/%s image pairs evaluated", done, total)
             progress_state["last_logged"] = done
 
+    audit_mode = str(getattr(args, "audit_mode", "legacy")).strip().lower()
+    if audit_mode == "enhanced":
+        default_cfg = Path(__file__).resolve().parents[2] / "configs" / "fairness_enhanced.yaml"
+        cfg_path = (
+            Path(args.enhanced_config).expanduser().resolve()
+            if getattr(args, "enhanced_config", None)
+            else default_cfg if default_cfg.exists() else None
+        )
+        enhanced_cfg = load_enhanced_config(cfg_path)
+        if getattr(args, "enhanced_stage", None):
+            enhanced_cfg.runtime.stage = str(args.enhanced_stage).strip().lower()
+        if getattr(args, "enhanced_feature_profile", None):
+            enhanced_cfg.features.profile = str(args.enhanced_feature_profile).strip().lower()
+        if getattr(args, "enhanced_resume", None) is not None:
+            enhanced_cfg.runtime.resume = bool(args.enhanced_resume)
+        if getattr(args, "enhanced_checkpoint_every", None) is not None:
+            enhanced_cfg.runtime.checkpoint_every = max(1, int(args.enhanced_checkpoint_every))
+        if getattr(args, "enhanced_workers_auto", None) is not None:
+            enhanced_cfg.runtime.workers_auto = bool(args.enhanced_workers_auto)
+        augment_columns = None
+        if getattr(args, "enhanced_augment_columns", None):
+            augment_columns = [
+                token.strip()
+                for token in str(args.enhanced_augment_columns).split(",")
+                if token.strip()
+            ]
+        payload = run_enhanced_fairness_audit(
+            image_mask_pairs=image_mask_pairs,
+            per_image_metrics=per_image_metrics,
+            run_dir=Path(args.run_dir),
+            run_config=run_config,
+            cfg=enhanced_cfg,
+            success_threshold=float(args.success_threshold),
+            workers=workers,
+            augment_columns=augment_columns,
+        )
+        logging.info(
+            "Enhanced fairness audit complete. Outputs at %s (rows=%s)",
+            payload.get("out_dir"),
+            payload.get("analysis_rows"),
+        )
+        return
+
     results, summaries, stats_payload = analyze_fairness(
         image_mask_pairs=image_mask_pairs,
         prediction_masks_dir=prediction_masks_dir,
@@ -996,6 +1040,47 @@ def build_parser() -> argparse.ArgumentParser:
     fair.add_argument("--manifest", help="Optional manifest filename or path")
     fair.add_argument("--sample-size", type=int, help="Limit number of images")
     fair.add_argument("--workers", type=int, default=1, help="Number of worker threads for fairness preprocessing")
+    fair.add_argument(
+        "--audit-mode",
+        choices=["legacy", "enhanced"],
+        default="legacy",
+        help="Fairness audit mode: keep legacy output schema or run enhanced audit v2",
+    )
+    fair.add_argument(
+        "--enhanced-config",
+        help="Path to enhanced fairness YAML/JSON config (used when --audit-mode enhanced)",
+    )
+    fair.add_argument(
+        "--enhanced-stage",
+        choices=["all", "core", "sensitivity", "augment"],
+        help="Enhanced execution stage override (all/core/sensitivity/augment)",
+    )
+    fair.add_argument(
+        "--enhanced-feature-profile",
+        choices=["balanced", "full", "minimal"],
+        help="Enhanced feature profile override (balanced/full/minimal)",
+    )
+    fair.add_argument(
+        "--enhanced-augment-columns",
+        help="Comma-separated feature columns to augment when --enhanced-stage augment is used",
+    )
+    fair.add_argument(
+        "--enhanced-resume",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Resume enhanced extraction checkpoints if available (default: config value, typically enabled)",
+    )
+    fair.add_argument(
+        "--enhanced-checkpoint-every",
+        type=int,
+        help="Enhanced extraction checkpoint cadence in images (default: config value, typically 50)",
+    )
+    fair.add_argument(
+        "--enhanced-workers-auto",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable memory-aware worker auto-capping for enhanced fairness (default: config value)",
+    )
     fair.add_argument("--success-threshold", type=float, default=0.5)
     fair.add_argument(
         "--bootstrap-method",

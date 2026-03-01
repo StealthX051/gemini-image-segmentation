@@ -89,7 +89,9 @@ python -c "import docx; print(docx.__file__)"
   - Replicate operational caveat (2026-02-19): accounts without payment method/credits can be throttled aggressively (for example, create-prediction `429` with ~`6/min` and burst `1` as observed in validation). For smoke tests on throttled accounts, start with `--workers 1 --rate-limit 12` (increase to `15` if needed).
   - Replicate version caveat: `--replicate-model-version` must be a valid, accessible version ID. Invalid or inaccessible IDs return `422 Invalid version or not permitted`.
   - Replicate validation status (2026-02-19): end-to-end SA2VA implementation is validated, including a completed full polyp 3-family batch run (`replicate_sa2va_polyp_full_20260219-162118`) with 1000 predictions per family. See `docs/AGENT_HANDOFF.md` for exact run paths and per-family metrics.
-- `fairness`: Compute ITA/Fitzpatrick statistics from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--manifest] [--sample-size] [--workers] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`. Defaults fall back to the stored `run_config.json` so fairness matches the originating segmentation subset and bootstrap settings.
+- `fairness`: Compute dermoscopy fairness artifacts from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--audit-mode legacy|enhanced] [--enhanced-config configs/fairness_enhanced.yaml] [--enhanced-stage all|core|sensitivity|augment] [--enhanced-feature-profile balanced|full|minimal] [--enhanced-augment-columns <csv>] [--enhanced-resume|--no-enhanced-resume] [--enhanced-checkpoint-every N] [--enhanced-workers-auto|--no-enhanced-workers-auto] [--manifest] [--sample-size] [--workers] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`.
+  - `--audit-mode legacy` (default): preserves the historical ITA/Fitzpatrick CSV schema under `<run_dir>/fairness/`.
+  - `--audit-mode enhanced`: runs Fairness Audit v2 and writes expanded artifacts under `<run_dir>/fairness_enhanced/`.
 - `python scripts/prepare_ima_plusplus.py`: Build an IMA++ CLI-compatible dataset root (`images/`, `masks/`, `masks_all/`, `master_imagelist_ima_plusplus.txt`) with canonical GT policy `STAPLE -> majority vote -> single annotator only` while retaining all mask metadata for sensitivity analyses.
 - `python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <results/.../run_id> [--dataset-root <path>]`: Generate IMA++ sensitivity artifacts against MV consensus and annotator masks under `<run_dir>/ima_plusplus_sensitivity/`.
 
@@ -170,7 +172,8 @@ results/<dataset>/<model>/<run_id>/
   raw_responses/*.json      # raw Gemini payloads (box_2d, label, mask) preserved per image
   metrics.csv               # per-image IoU/Dice/success; updated after each image
   summary.csv               # rolling aggregates with bootstrap CIs
-  fairness/                 # ITA distributions, Chardon labels, Kruskal–Wallis, Dunn+Holm, Cliff’s Delta, χ² success tables
+  fairness/                 # Legacy fairness artifacts (unchanged schema)
+  fairness_enhanced/        # Enhanced fairness v2 artifacts (analysis_frame, dedup maps, trends, sensitivities)
 ```
 - **Resume behavior**: If `predictions.jsonl` exists, the CLI rehydrates prior metrics/masks/overlays before processing remaining images. Writes are atomic per image to avoid corruption on interruption.
 - **Legacy parity**: `--legacy-predictions` writes the notebook-style JSON (including bounding boxes and base64 masks) under `predictions_<model>/` near the dataset, matching the original consumers. Raw payloads are also saved under `raw_responses/` for byte-for-byte reproduction.
@@ -232,20 +235,43 @@ results/<dataset>/<model>/<run_id>/
 
 ### Fairness analysis
 - Consumes the masks/metrics from a completed `segment` run; does not rerun Gemini.
-- Mirrors the notebook ITA pipeline: peri-lesional masking, luminance filtering (5–95th percentiles), ≥2% area and ≥200 valid-pixel thresholds, median ITA → Chardon labels → Light/Dark split.
-- Reports per-group IoU/Dice means/medians with BCa CIs, Kruskal–Wallis, pairwise Dunn with Holm–Bonferroni correction, Cliff’s Delta effect sizes (with bootstrap CIs), and χ² comparisons of success rates.
+- Legacy mode mirrors the historical notebook ITA/Fitzpatrick workflow.
+- Legacy mode remains default for paper-parity workflows (`--audit-mode legacy`).
+- Enhanced mode (`--audit-mode enhanced`) adds:
+  - canonical `analysis_frame.parquet`,
+  - SHA/pHash-based deduplication maps/reports,
+  - endpoint effect-size tables (IoU + success RD/RR/OR),
+  - continuous ITA trend plots/tables,
+  - threshold and dedup sensitivity outputs.
+  - default ITA method is global non-lesional region sampling with ITA computed from aggregated `L*`/`b*` (documented per run in `fairness_enhanced/ita_method_note.json|md`).
+- Enhanced runtime controls:
+  - `--enhanced-stage core` (fast first pass), `--enhanced-stage sensitivity` (expensive second pass), `--enhanced-stage augment` (targeted feature backfill), or `--enhanced-stage all`.
+  - `--enhanced-feature-profile balanced|full|minimal` controls core feature gating and compute cost.
+  - `--enhanced-augment-columns` requests explicit feature backfill columns for augment runs (for example `phash64_hex,specular_frac`).
+  - resumable extraction checkpoints (`cache/features_part_*.parquet` + `cache/features_manifest.json`) controlled by `--enhanced-resume/--no-enhanced-resume`.
+  - `--enhanced-checkpoint-every` to tune checkpoint cadence.
+  - memory-aware worker auto-capping can be toggled with `--enhanced-workers-auto|--no-enhanced-workers-auto`.
+  - `runtime_profile.json` captures per-stage wall/CPU/RAM peak telemetry and throughput.
+  - `core` stage intentionally defers sensitivity-only outputs (`dedup_sensitivity.csv`, dependence/mask-source sensitivity files) to the `sensitivity` stage.
+- Enhanced defaults are configured in `configs/fairness_enhanced.yaml`; override with `--enhanced-config`.
+- Implementation-aligned enhanced methods and manuscript-ready wording live in:
+  - `docs/FAIRNESS_ENHANCED_METHODS.md`
+  - `docs/FAIRNESS_ENHANCED.md` (operational quick reference)
 
 ### Paper artifacts
 - **Tables/Figure placeholders:** `python -m gemini_segmentation.paper.make_all --results <path/to/long_form_results.csv>` (Parquet is also supported). The YAML registry in `configs/paper.yaml` documents required columns (task/model/prompt_strategy/iou/dice/success), display labels, and specifications for each table/figure. Artifacts land in `artifacts/` by default with `tables/*.csv|html|docx` and `figures/*.png|pdf`; override with `--artifacts` for CI.
 - **Figure 1 best cases:** `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml` selects the highest-IoU image per configured dataset/target (persisting selection to `artifacts/figures/figure1_best_cases/selection.yaml`) and renders the montage to PDF/PNG in the same directory.
 - **Fairness Figure 2 + Table 4:** `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>` consumes the ITA fairness CSVs from a completed run and emits the combined four-panel plot (`figure2.png|pdf|svg`), each standalone panel (`figure2_panel_[a-d]_*.png|pdf|svg`), plus Table 4 to `artifacts/fairness/` (paths are configurable via `--output-dir`). `--fairness-dir` must be the concrete fairness artifact folder containing `fairness_results.csv`, `fairness_summary.csv`, and optionally `fairness_stats.csv`.
+- **Enhanced fairness manuscript artifacts (Figures E/Tables E + narrative report):** `python -m gemini_segmentation.paper.figures_enhanced --fairness-enhanced-dir <results/.../fairness_enhanced>` consumes enhanced fairness outputs and writes publication-style figure/table artifacts under `artifacts/fairness_enhanced/` including individual figures (`png|svg|pdf`), tables (`csv|html|md`), and one combined report (`enhanced_fairness_report.md|html|pdf|docx`). Optional flags: `--include-supplement|--no-include-supplement`, `--report-title`, `--report-stem`, `--seed`.
 - **Prompt-family comparison report (Markdown/HTML/PDF):** `python -m gemini_segmentation.paper.prompt_comparison --dataset polyp` reads completed run summaries and emits grouped model sections plus a consolidated PDF mega table with publication-style model/prompt labels. Rows include mean IoU/Dice (95% CI), median IoU/Dice, and success rate in `.md`, `.html`, `.pdf`, and `.csv` under `results/reports/`. Override run selection with `--gemini-run-id` / `--moondream-run-id` / `--replicate-run-id` when needed.
 
 ## Extending the project
 - **New datasets**: Add discovery helpers or manifest builders in `src/gemini_segmentation/data.py` if layout differs; keep `images/`/`masks/` naming stable to reuse the CLI.
 - **New prompts/models**: Add YAML presets or extend `src/gemini_segmentation/models.py` to register additional providers while honoring the `segment_image` contract.
 - **Custom metrics**: Extend `src/gemini_segmentation/metrics.py` to add new per-image metrics; aggregate outputs automatically join `metrics.csv`/`summary.csv`.
-- **Fairness variations**: Modify `src/gemini_segmentation/fairness.py` to add new groupings or filters; outputs will land under the run’s `fairness/` directory.
+- **Fairness variations**:
+  - Legacy workflow lives in `src/gemini_segmentation/fairness.py` (`fairness/` outputs).
+  - Enhanced workflow lives in `src/gemini_segmentation/fairness_enhanced/` (`fairness_enhanced/` outputs).
 
 ## Key files to read
 - **Notebook starters**: the first cell of any `notebooks/NN_*_environment_and_data_prep*.ipynb` for dataset discovery and segmentation helpers.
@@ -253,7 +279,9 @@ results/<dataset>/<model>/<run_id>/
 - **Batch entrypoint**: `src/gemini_segmentation/batch.py` (matrix orchestration, strict preflight, status logs).
 - **Gemini client + parsing**: `src/gemini_segmentation/models.py` and `src/gemini_segmentation/io.py` (request construction, response parsing, mask decoding, legacy exports).
 - **Metrics and resume logic**: `src/gemini_segmentation/metrics.py` and `src/gemini_segmentation/io.py` (IoU/Dice, bootstrap, checkpointing, JSONL handling).
-- **Fairness**: `src/gemini_segmentation/fairness.py` (ITA computation, statistical tests, output schemas).
+- **Fairness**:
+  - `src/gemini_segmentation/fairness.py` (legacy ITA computation/statistics/output schema),
+  - `src/gemini_segmentation/fairness_enhanced/` (enhanced fairness v2 pipeline).
 - **Prompts**: `configs/prompts.yaml` (presets) or CLI flags for overrides.
 
 ## Notes on legacy vs. CLI
