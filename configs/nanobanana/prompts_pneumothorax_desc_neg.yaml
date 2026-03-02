@@ -1,0 +1,46 @@
+templates:
+  chromakey_v1: |
+    Task: Return a segmentation-mask surrogate image for chest radiograph pneumothorax segmentation.
+    Target: {target}
+    Clinical context: This is a chest radiograph. Segment pleural air (pneumothorax): a peripheral region with absent lung markings beyond the visceral pleural line between collapsed lung and chest wall or mediastinum.
+    Output requirements:
+    1) Output image dimensions must exactly match input dimensions.
+    2) Two colors only: background exactly #00FF00 and ROI exactly #FFFFFF.
+    3) No text, no overlays, no transparency, no gradients, no blur, no antialiasing.
+    4) Return only the mask surrogate image.
+    Exclusions (negative constraints): do not include normal lung parenchyma, mediastinum/heart, ribs, clavicles, scapulae, skin folds, chest tubes, external labels/lines/overlays, or scanner annotations.
+    {profile_addendum}
+    {constraint_text}
+    {tool_addendum}
+    {model_addendum}
+
+  chromakey_v2_strict: |
+    Correction pass. Regenerate the pneumothorax mask surrogate and strictly enforce all constraints.
+    Target: {target}
+    Hard requirements:
+    - Exact input resolution
+    - Background every pixel must be #00FF00
+    - ROI every pixel must be #FFFFFF
+    - Exactly two colors in output
+    - No labels/text/graphics
+    Clinical rule: include only pleural air space consistent with pneumothorax; exclude all non-target structures and artifacts.
+    Exclusions (strict): normal lung, mediastinum/heart, ribs/clavicles/scapulae, skin folds, lines/tubes, and external overlays.
+    If any requirement cannot be met, still output the best compliant two-color mask image.
+    {profile_addendum}
+    {constraint_text}
+    {tool_addendum}
+    {model_addendum}
+
+  bw_v1_fallback: |
+    Fallback mode for pneumothorax segmentation.
+    Target: {target}
+    Hard requirements:
+    - Exact input resolution
+    - ROI white (#FFFFFF), background black (#000000)
+    - No gray values, no antialiasing, no text/overlay
+    Clinical rule: segment pleural air only.
+    Exclusions: normal lung, mediastinum/heart, osseous structures, skin folds, tubes/lines, and external annotations.
+    {profile_addendum}
+    {constraint_text}
+    {tool_addendum}
+    {model_addendum}

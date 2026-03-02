@@ -163,3 +163,27 @@ For a full polyp 3x3 run (three models × three prompt families) with `workers=1
 - `tests/test_cli.py`
 - `tests/test_batch.py`
 - `tests/test_metrics.py`
+
+## NanoBanana Study Lane (2026-03-01)
+- New isolated package path: `src/nanobanana_segmentation/`.
+- Service entrypoint:
+  - `uvicorn nanobanana_segmentation.service.main:app --host 0.0.0.0 --port 8000`
+- Study runner entrypoint:
+  - `python -m nanobanana_segmentation.study.runner --config configs/nanobanana/study.yaml --stage stage1`
+- Default NanoBanana roots:
+  - `results_nanobanana/`
+  - `artifacts_nanobanana/`
+- Configs:
+  - `configs/nanobanana/service.yaml`
+  - `configs/nanobanana/study.yaml`
+  - `configs/nanobanana/prompts.yaml`
+- Operational notes:
+  - package is intentionally isolated; do not route NanoBanana logic through `gemini_segmentation.cli`.
+  - model responses are persisted raw per attempt in artifact run directories.
+  - grounding/thought metadata capture is best-effort and field-tolerant to API payload shape changes.
+  - some image-generation responses can return masks at non-input resolution; engine now resizes selected masks to input shape for overlay/final artifact writes and logs `resized_mask_to_input_shape` plus QC `resolution_mismatch`.
+  - study evaluation now normalizes multi-channel GT/pred masks to single-channel before IoU/Dice/Precision/Recall computation to support RGB/JPEG mask datasets (for example polyp).
+  - Current `google-genai` environment does not expose Google Search type selectors (`GoogleSearch.search_types` with `web_search`/`image_search`); requested `image` and `text_image` modes therefore fall back to effective `text`, with explicit attempt warnings (`tool_image_search_unavailable_in_sdk`, `tool_mode_fallback:*`).
+  - Retrieval-policy toggles are configurable in study configs via `retrieval.{query_policy,snapshot_policy,scope_policy,...}` and reporting now emits explicit primary/sensitivity partition artifacts.
+  - Study runner execution parallelism and stall diagnostics are configurable via `execution.{workers,progress_poll_seconds,progress_log_interval_seconds,stall_warning_seconds,fail_fast}`; run summaries now include `n_tasks`, `n_failures`, `failures`, and `stall_events`.
+  - Preliminary local smoke observation (March 2, 2026): both chromakey-first and BW-only NanoBanana lanes run end-to-end, but observed performance has not clearly exceeded the local `gemini-robotics-er-1.5-preview` baseline; treat as non-final until controlled paired benchmark runs are completed.

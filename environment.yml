@@ -28,3 +28,7 @@ dependencies:
       - moondream
       - cairosvg
       - python-docx
+      - fastapi
+      - uvicorn
+      - prometheus-client
+      - python-multipart

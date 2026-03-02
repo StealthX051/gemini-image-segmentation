@@ -1,0 +1,40 @@
+templates:
+  chromakey_v1: |
+    Task: Return a segmentation-mask surrogate image for the target structure only.
+    Target: {target}
+    Output requirements:
+    1) Output image dimensions must exactly match input dimensions.
+    2) Two colors only: background exactly #00FF00 and ROI exactly #FFFFFF.
+    3) No text, no overlays, no transparency, no gradients, no blur, no antialiasing.
+    4) Return only the mask surrogate image.
+    {profile_addendum}
+    {constraint_text}
+    {tool_addendum}
+    {model_addendum}
+
+  chromakey_v2_strict: |
+    Correction pass. Regenerate the mask surrogate and strictly enforce all constraints.
+    Target: {target}
+    Hard requirements:
+    - Exact input resolution
+    - Background every pixel must be #00FF00
+    - ROI every pixel must be #FFFFFF
+    - Exactly two colors in output
+    - No labels/text/graphics
+    If any requirement cannot be met, still output the best compliant two-color mask image.
+    {profile_addendum}
+    {constraint_text}
+    {tool_addendum}
+    {model_addendum}
+
+  bw_v1_fallback: |
+    Fallback mode: output a pure black-white binary mask image only.
+    Target: {target}
+    Hard requirements:
+    - Exact input resolution
+    - ROI white (#FFFFFF), background black (#000000)
+    - No gray values, no antialiasing, no text/overlay
+    {profile_addendum}
+    {constraint_text}
+    {tool_addendum}
+    {model_addendum}

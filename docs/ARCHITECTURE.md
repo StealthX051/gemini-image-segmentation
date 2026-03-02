@@ -63,3 +63,20 @@
 - Notebook workflows are legacy but still relevant for provenance and parity checks.
 - Paper tools expect stable CSV schemas and config-driven registries in `configs/`.
 - Replicate preflight checks token availability but cannot verify billing/credits or model-version permissions ahead of runtime; those can still surface as provider `429`/`422` responses during execution.
+
+## NanoBanana Isolated Lane
+- Independent package root: `src/nanobanana_segmentation/`.
+- Existing `gemini_segmentation` CLI/runtime contracts are unchanged.
+- Shared helper reuse is limited to stable utilities (dataset discovery, metric formulas, hashing/cache primitives).
+- Core NanoBanana flow:
+  1. Build semantic retry-ladder prompts (`core/prompts.py`).
+  2. Call NanoBanana model adapter with tool mode and thinking controls (`core/engine.py`).
+  3. Parse grounding + thought metadata (`core/grounding/parse_grounding.py`).
+  4. Run deterministic mask extraction (`core/extract/*`).
+  5. Apply QC scoring and attempt selection (`core/qc.py`).
+  6. Persist raw request/response + artifacts + run record (`core/logging/*`).
+- Microservice entrypoint: `nanobanana_segmentation.service.main` (`/v1/segment`, `/health`, `/metrics`).
+- Study entrypoint: `python -m nanobanana_segmentation.study.runner --config ...`.
+- NanoBanana default output roots:
+  - `results_nanobanana/`
+  - `artifacts_nanobanana/`

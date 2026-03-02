@@ -291,3 +291,18 @@ results/<dataset>/<model>/<run_id>/
 - **Inputs are unchanged**: keep all datasets where the notebooks expect them; the CLI reads the same locations.
 - **Outputs are unified**: prefer the `results/` tree for new runs; enable `--legacy-predictions` only if older notebook consumers need the original JSON drops.
 - **Tmux/parallelism**: you can still orchestrate multiple CLI runs with tmux; within a run, use `--workers` for thread-level parallelism guarded by the global rate limiter.
+
+## NanoBanana package (isolated study lane)
+This repo also includes an isolated NanoBanana package under `src/nanobanana_segmentation/`.
+
+- Microservice:
+  - `uvicorn nanobanana_segmentation.service.main:app --host 0.0.0.0 --port 8000`
+  - Endpoints: `POST /v1/segment`, `GET /health`, `GET /metrics`.
+- Study runner:
+  - `python -m nanobanana_segmentation.study.runner --config configs/nanobanana/study.yaml --stage stage1`
+  - Stages: `stage0`, `stage1`, `stage2`, `all`.
+- Default artifact roots:
+  - `results_nanobanana/`
+  - `artifacts_nanobanana/`
+- Full operational details:
+  - `docs/NANOBANANA_STUDY.md`

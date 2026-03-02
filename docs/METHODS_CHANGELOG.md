@@ -3,7 +3,7 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v15` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity + IMA++ STAPLE-first canonical GT preparation with retained multi-mask sensitivity workflow + IMA++ acquisition/prep hardening for live Zenodo resolution, threaded API downloads, and split-manifest compatibility + enhanced dermoscopy fairness audit v2 with legacy-safe mode routing, SHA/pHash dedup, canonical analysis frame, trend/sensitivity artifacts, and proxy-language templating + enhanced fairness lesion-area/binarization correctness hardening for unit-scale GT masks and full-resolution lesion fraction retention + enhanced ITA methodology controls/provenance notes with optional legacy-like ITA sensitivity output for discrepancy analysis + enhanced-default ITA region reset to global non-lesional with aggregated L*/b* ITA and region-aware proxy labeling + covariate-adjusted predictive-margin success effects with bootstrap CIs and model-spec artifacts + adjusted-model component contribution outputs with CI-based significance and publication-readable enhanced report tables).
+- `posthoc_v19` (provider expansion + prompt ablation families + caching/retry hardening + provider-parameter parity + Replicate batch/instruction-shaping hardening + Replicate input-serialization/runtime validation hardening + standardized comparison reporting + Replicate-inclusive comparison report run selection + completed operational validation record + fairness Figure 2 panel-level export parity + IMA++ STAPLE-first canonical GT preparation with retained multi-mask sensitivity workflow + IMA++ acquisition/prep hardening for live Zenodo resolution, threaded API downloads, and split-manifest compatibility + enhanced dermoscopy fairness audit v2 with legacy-safe mode routing, SHA/pHash dedup, canonical analysis frame, trend/sensitivity artifacts, and proxy-language templating + enhanced fairness lesion-area/binarization correctness hardening for unit-scale GT masks and full-resolution lesion fraction retention + enhanced ITA methodology controls/provenance notes with optional legacy-like ITA sensitivity output for discrepancy analysis + enhanced-default ITA region reset to global non-lesional with aggregated L*/b* ITA and region-aware proxy labeling + covariate-adjusted predictive-margin success effects with bootstrap CIs and model-spec artifacts + adjusted-model component contribution outputs with CI-based significance and publication-readable enhanced report tables + NanoBanana SDK-compatible tool wiring with explicit image-search fallback telemetry + NanoBanana retrieval-policy toggles with explicit primary-vs-sensitivity partition reporting + NanoBanana image-generation config compatibility fix removing invalid `response_mime_type` on GenerateContent requests + NanoBanana image-part decoding hardening for SDK-native inline bytes/base64 and non-PNG surrogate image bytes).
 
 ## Entries
 
@@ -175,6 +175,62 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: extended enhanced covariate-adjusted outputs with per-term adjusted-model contributions (log-odds and odds-ratio views) plus bootstrap CI-based term significance flags, and updated enhanced manuscript artifact tables to include component contributions with publication-readable columns.
 - Impact: enables transparent reporting of which adjusted-model contributors retain directional/significance evidence, while keeping report generation resilient when covariate-adjusted artifacts are absent.
 - Code anchors: `src/gemini_segmentation/fairness_enhanced/covadj.py`, `src/gemini_segmentation/fairness_enhanced/pipeline.py`, `src/gemini_segmentation/paper/figures_enhanced.py`, `tests/test_fairness_enhanced.py`, `tests/test_paper_figures_enhanced.py`, `docs/FAIRNESS_ENHANCED_METHODS.md`, `docs/FAIRNESS_ENHANCED.md`, `README.md`.
+
+### MTH-POSTHOC-024
+- Date: 2026-03-01.
+- Status: active.
+- Summary: added an isolated NanoBanana 2 study lane (`src/nanobanana_segmentation/`) with a segmentation microservice (`/v1/segment`, `/health`, `/metrics`) and a staged tool-ablation runner (`stage0/1/2`) that logs raw request/response payloads, grounding/thought metadata, deterministic extraction/QC attempts, and run-record artifacts under dedicated roots (`results_nanobanana/`, `artifacts_nanobanana/`).
+- Impact: enables independent NanoBanana capability studies without changing existing manuscript-aligned `gemini_segmentation` CLI/provider contracts; introduces retrieval leakage auditing (duplicate and mask-source heuristics) plus study-level summary/report outputs for tool-mode comparisons.
+- Code anchors: `src/nanobanana_segmentation/core/engine.py`, `src/nanobanana_segmentation/core/qc.py`, `src/nanobanana_segmentation/core/extract/`, `src/nanobanana_segmentation/core/grounding/parse_grounding.py`, `src/nanobanana_segmentation/service/main.py`, `src/nanobanana_segmentation/study/runner.py`, `src/nanobanana_segmentation/study/leakage.py`, `configs/nanobanana/service.yaml`, `configs/nanobanana/study.yaml`, `docs/NANOBANANA_STUDY.md`, `tests/nanobanana/`.
+
+### MTH-POSTHOC-025
+- Date: 2026-03-01.
+- Status: active.
+- Summary: fixed NanoBanana `generateContent` tool wiring to use SDK-validated list payloads (`tools=[...]`) instead of dict payloads, moved `include_thoughts` to `ThinkingConfig`, and aligned tool-mode mapping to Google docs by using `google_search.search_types` (`web_search`/`image_search`) when available, with deterministic fallback telemetry when search-type selectors are missing in the installed SDK.
+- Impact: prevents runtime request validation failure (`GenerateContentConfig.tools` list-type error), preserves smoke/study execution continuity, and makes tool-mode degradations auditable so ablation interpretation can exclude unsupported `image` tool claims.
+- Code anchors: `src/nanobanana_segmentation/core/engine.py`, `tests/nanobanana/test_engine.py`, `docs/NANOBANANA_STUDY.md`, `docs/AGENT_HANDOFF.md`.
+
+### MTH-POSTHOC-026
+- Date: 2026-03-01.
+- Status: active.
+- Summary: added configurable NanoBanana retrieval-policy toggles (`query_policy`, `snapshot_policy`, `scope_policy`) through study config/API request wiring and propagated them into `run_record.tool_config`; implemented explicit primary vs sensitivity analysis partitioning with dedicated CSV/plot outputs and partition-count reporting.
+- Impact: removes hardcoded retrieval-policy assumptions, makes ablation governance settings auditable per run, and aligns reporting with contamination-handling requirements by separating primary and sensitivity analysis sets.
+- Code anchors: `src/nanobanana_segmentation/study/config.py`, `src/nanobanana_segmentation/study/runner.py`, `src/nanobanana_segmentation/study/reports.py`, `src/nanobanana_segmentation/core/types.py`, `src/nanobanana_segmentation/core/engine.py`, `src/nanobanana_segmentation/service/api_models.py`, `src/nanobanana_segmentation/service/main.py`, `configs/nanobanana/study.yaml`, `docs/NANOBANANA_STUDY.md`.
+
+### MTH-POSTHOC-027
+- Date: 2026-03-01.
+- Status: active.
+- Summary: fixed NanoBanana `generateContent` image-generation request compatibility by removing `generation_config.response_mime_type=image/png` and relying on `response_modalities=["IMAGE"]`.
+- Impact: resolves runtime `400 INVALID_ARGUMENT` failures in current `google-genai` SDK where `response_mime_type` is restricted to text/structured MIME types for this endpoint.
+- Code anchors: `src/nanobanana_segmentation/core/engine.py`.
+
+### MTH-POSTHOC-028
+- Date: 2026-03-01.
+- Status: active.
+- Summary: hardened NanoBanana surrogate image extraction to follow Python SDK response patterns (`response.parts` / `part.inline_data` / `part.as_image()`), accept both inline bytes and base64 string payloads, and decode non-PNG image bytes (e.g., JPEG) before deterministic mask extraction.
+- Impact: resolves runtime surrogate decode failures (`Unable to decode PNG bytes`) when the model returns image bytes in SDK-native formats that are not strict PNG base64 strings.
+- Code anchors: `src/nanobanana_segmentation/core/engine.py`, `tests/nanobanana/test_engine.py`.
+
+### MTH-POSTHOC-029
+- Date: 2026-03-01.
+- Status: active.
+- Summary: added configurable parallel execution for the NanoBanana study runner (`execution.workers`) with deterministic result ordering plus stage-level progress/stall diagnostics (`progress_poll_seconds`, `progress_log_interval_seconds`, `stall_warning_seconds`, `fail_fast`) and run-summary telemetry (`n_tasks`, `n_failures`, `failures`, `stall_events`).
+- Impact: reduces wall-clock time for stage runs, improves visibility into long-running/frozen-looking tasks, and preserves auditable outputs under the existing study/result artifact contracts.
+- Code anchors: `src/nanobanana_segmentation/study/config.py`, `src/nanobanana_segmentation/study/runner.py`, `configs/nanobanana/study.yaml`, `configs/nanobanana/study_pneumothorax_smoke_desc_neg.yaml`, `tests/nanobanana/test_study_config.py`, `tests/nanobanana/test_runner_parallel.py`, `docs/NANOBANANA_STUDY.md`, `docs/AGENT_HANDOFF.md`.
+
+### MTH-POSTHOC-030
+- Date: 2026-03-02.
+- Status: active.
+- Summary: hardened NanoBanana engine handling for surrogate/output resolution mismatches by resizing selected masks to input image dimensions with nearest-neighbor before overlay/final artifact writes, while preserving explicit QC failure signaling (`resolution_mismatch`) and warning telemetry (`resized_mask_to_input_shape`).
+- Impact: prevents stage-run crashes on non-conforming model output sizes (for example `(960,1120)` surrogate masks for `(529,619)` inputs), allowing smoke/benchmark completion with auditable mismatch flags instead of hard failures.
+- Code anchors: `src/nanobanana_segmentation/core/engine.py`, `tests/nanobanana/test_engine.py`.
+
+### MTH-POSTHOC-031
+- Date: 2026-03-02.
+- Status: active.
+- Summary: hardened NanoBanana study evaluation against multi-channel ground-truth masks by normalizing GT/pred arrays to single-channel before metric computation and returning zeroed metrics (with warning) on irreconcilable shape mismatch instead of crashing the run.
+- Impact: prevents stage-run failures on datasets with RGB/JPEG mask files (for example polyp `masks/*.jpg`), enabling stable smoke diagnostics while preserving explicit mismatch handling.
+- Code anchors: `src/nanobanana_segmentation/study/eval.py`, `tests/nanobanana/test_eval.py`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

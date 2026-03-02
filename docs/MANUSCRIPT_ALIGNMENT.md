@@ -8,6 +8,7 @@ This document keeps implementation changes aligned with:
 ## Current Scope
 - Core task families remain medical-image segmentation workflows across endoscopy, dermoscopy, fundus imaging, laparoscopy, ultrasound, CT, and chest radiography.
 - The production entrypoint is the CLI (`src/gemini_segmentation/cli.py`), with notebooks preserved as legacy provenance.
+- The isolated NanoBanana study lane (`src/nanobanana_segmentation/`) is intentionally separate from manuscript-baseline runtime contracts and does not alter existing CLI semantics unless explicitly promoted.
 
 ## Post Hoc Additions Reflected In Code
 - Provider expansion includes Gemini model selection via `--model-name` (including `gemini-robotics-er-1.5-preview` support as a model identifier).

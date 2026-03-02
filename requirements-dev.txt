@@ -18,3 +18,7 @@ moondream
 cairosvg
 python-docx
 pyarrow
+fastapi
+uvicorn
+prometheus-client
+python-multipart

@@ -5,11 +5,27 @@ from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+
+class WritableArrayTransformer(BaseEstimator, TransformerMixin):
+    """Force a writable ndarray copy while preserving feature-name passthrough."""
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return np.array(X, copy=True)
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            return np.asarray([], dtype=object)
+        return np.asarray(list(input_features), dtype=object)
 
 
 def _risk_effects(r_low: float, r_high: float) -> Dict[str, float]:
@@ -102,6 +118,9 @@ def _build_logistic_pipeline(
     c_value: float,
     max_iter: int,
 ) -> Pipeline:
+    # Some pandas backends can expose read-only views to sklearn transformers.
+    # Force writable array copies before imputation/encoding to avoid transform-time failures.
+    writable_copy = WritableArrayTransformer()
     transformers = []
     if numeric_cols:
         transformers.append(
@@ -109,6 +128,7 @@ def _build_logistic_pipeline(
                 "num",
                 Pipeline(
                     steps=[
+                        ("to_writable", writable_copy),
                         ("imputer", SimpleImputer(strategy="median")),
                         ("scaler", StandardScaler()),
                     ]
@@ -122,6 +142,7 @@ def _build_logistic_pipeline(
                 "cat",
                 Pipeline(
                     steps=[
+                        ("to_writable", writable_copy),
                         ("imputer", SimpleImputer(strategy="most_frequent")),
                         ("onehot", OneHotEncoder(handle_unknown="ignore")),
                     ]

@@ -1,0 +1,67 @@
+study_id: nanobanana_pneumothorax_smoke_desc_neg
+dataset_name: pneumothorax_cxr
+# Local SIIM-ACR root in this repo (legacy naming uses image/ + mask/).
+dataset_root: data/SLIM_ACR
+# Positive-only subset for SIIM-ACR pneumothorax smoke checks.
+manifest: master_imagelist_pneumothorax_cxr_positive.txt
+target: pneumothorax
+
+model:
+  model_id: gemini-3.1-flash-image-preview
+  api_surface: generate_content
+  model_style: nanobanana_v1
+  include_thoughts: false
+  cost_per_attempt_usd: 0.01
+  use_otsu_bw: false
+
+matrix:
+  tool_modes: [closed, text, image, text_image]
+  thinking_levels: [minimal]
+  replicates: 1
+
+stages:
+  stage0_sample_size: 10
+  stage1_sample_size: null
+  stage2_enabled: false
+  stage2_sample_size: 50
+  stage2_tool_modes: [closed, text_image]
+  stage2_thinking_levels: [minimal, high]
+  stage2_replicates: 3
+
+execution:
+  workers: 6
+  client_timeout_s: 120
+  progress_poll_seconds: 2
+  progress_log_interval_seconds: 20
+  stall_warning_seconds: 180
+  fail_fast: true
+  max_retries_semantic: 3
+  max_retries_transport: 3
+  task_profile: low_contrast
+  mode: auto
+  prompts_path: configs/nanobanana/prompts_pneumothorax_desc_neg.yaml
+  constraints:
+    min_area_frac: 0.0
+    max_area_frac: 0.8
+    single_component: false
+    allow_border_touch: true
+    min_components: 1
+    max_components: 1024
+  budget:
+    max_cost_usd: null
+    max_attempts_total: null
+
+retrieval:
+  query_policy: model_generated
+  snapshot_policy: live_with_caching
+  scope_policy: open_web
+  primary_exclude_duplicates: true
+  primary_exclude_mask_source: true
+  include_audit_unavailable_in_primary: true
+
+paths:
+  results_root: results_nanobanana
+  artifacts_root: artifacts_nanobanana
+
+leakage:
+  near_hamming_threshold: 8

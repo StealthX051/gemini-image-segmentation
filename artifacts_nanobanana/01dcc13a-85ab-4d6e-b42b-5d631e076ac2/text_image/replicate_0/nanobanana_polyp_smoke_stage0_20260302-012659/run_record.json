@@ -1,0 +1,205 @@
+{
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "attempt_mode": "chromakey",
+      "extraction_method": "chromakey_hsv",
+      "failure_reasons": [
+        "resolution_mismatch"
+      ],
+      "grounding": {
+        "entry_points": [],
+        "executed_queries": [],
+        "grounding_chunks": [],
+        "grounding_supports": []
+      },
+      "intermediate_mask_paths": [
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_01_chromakey_hsv_raw_9a9c37d6fb14a7d5.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_01_chromakey_hsv_post_9a9c37d6fb14a7d5.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_01_chromakey_ratio_raw_28c143380ab30a84.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_01_chromakey_ratio_post_28c143380ab30a84.png"
+      ],
+      "overlay_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\overlay\\attempt_01_overlay_ebf0693be261d255.png",
+      "prompt_id": "chromakey_v1",
+      "prompt_text": "Task: Return a segmentation-mask surrogate image for the target structure only.\nTarget: polyp\nOutput requirements:\n1) Output image dimensions must exactly match input dimensions.\n2) Two colors only: background exactly #00FF00 and ROI exactly #FFFFFF.\n3) No text, no overlays, no transparency, no gradients, no blur, no antialiasing.\n4) Return only the mask surrogate image.\nBlob profile: delineate the full visible target extent with a tight but complete boundary.\nMinimum ROI area fraction: 0.0\nMaximum ROI area fraction: 1.0\nMinimum connected components: 1\nMaximum connected components: 1024\nTool mode: text + image grounding enabled. Use retrieval for reasoning only; output must remain original mask surrogate pixels.\nNanoBanana image-generation mode: return one generated image only, with no markdown, JSON, or explanatory text.",
+      "qc_metrics": {
+        "border_touch": false,
+        "component_count": 1,
+        "green_coverage": 0.5991931352459017,
+        "green_uniformity_proxy": 1.7158661677234732,
+        "largest_component_frac": 1.0,
+        "mask_area_frac": 0.39908351916586304,
+        "mask_nonempty": true,
+        "resolution_match": false,
+        "speckle_score": 0.0
+      },
+      "qc_pass": false,
+      "raw_request_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\raw\\attempt_01_request.json",
+      "raw_response_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\raw\\attempt_01_response.json",
+      "score": -92.73703518947184,
+      "surrogate_image_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\surrogate\\attempt_01_surrogate_1a24d828d11cbbcf.png",
+      "thought_signature_present": true,
+      "thought_signatures": [
+        "<bytes:492570>"
+      ],
+      "thought_summaries": [],
+      "transport_retries": 0,
+      "transport_retry_events": [],
+      "warnings": [
+        "tool_image_search_unavailable_in_sdk",
+        "tool_mode_fallback:text_image->text",
+        "resized_mask_to_input_shape"
+      ]
+    },
+    {
+      "attempt_index": 2,
+      "attempt_mode": "chromakey",
+      "extraction_method": "chromakey_ratio",
+      "failure_reasons": [
+        "resolution_mismatch"
+      ],
+      "grounding": {
+        "entry_points": [],
+        "executed_queries": [],
+        "grounding_chunks": [],
+        "grounding_supports": []
+      },
+      "intermediate_mask_paths": [
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_02_chromakey_hsv_raw_3fd4163657876a35.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_02_chromakey_hsv_post_03e1f5539dda7767.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_02_chromakey_ratio_raw_ee6885810a55dafb.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_02_chromakey_ratio_post_1671c4380c66431c.png"
+      ],
+      "overlay_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\overlay\\attempt_02_overlay_c66c658fb65a93da.png",
+      "prompt_id": "chromakey_v2_strict",
+      "prompt_text": "Correction pass. Regenerate the mask surrogate and strictly enforce all constraints.\nTarget: polyp\nHard requirements:\n- Exact input resolution\n- Background every pixel must be #00FF00\n- ROI every pixel must be #FFFFFF\n- Exactly two colors in output\n- No labels/text/graphics\nIf any requirement cannot be met, still output the best compliant two-color mask image.\nBlob profile: delineate the full visible target extent with a tight but complete boundary.\nMinimum ROI area fraction: 0.0\nMaximum ROI area fraction: 1.0\nMinimum connected components: 1\nMaximum connected components: 1024\nTool mode: text + image grounding enabled. Use retrieval for reasoning only; output must remain original mask surrogate pixels.\nNanoBanana image-generation mode: return one generated image only, with no markdown, JSON, or explanatory text.",
+      "qc_metrics": {
+        "border_touch": true,
+        "component_count": 1,
+        "green_coverage": 0.5548080400192864,
+        "green_uniformity_proxy": 1.9423333964225555,
+        "largest_component_frac": 1.0,
+        "mask_area_frac": 0.4393693120178399,
+        "mask_nonempty": true,
+        "resolution_match": false,
+        "speckle_score": 0.0
+      },
+      "qc_pass": false,
+      "raw_request_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\raw\\attempt_02_request.json",
+      "raw_response_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\raw\\attempt_02_response.json",
+      "score": -113.23750294891278,
+      "surrogate_image_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\surrogate\\attempt_02_surrogate_5abe41d0f6643174.png",
+      "thought_signature_present": true,
+      "thought_signatures": [
+        "<bytes:497222>"
+      ],
+      "thought_summaries": [],
+      "transport_retries": 0,
+      "transport_retry_events": [],
+      "warnings": [
+        "tool_image_search_unavailable_in_sdk",
+        "tool_mode_fallback:text_image->text",
+        "resized_mask_to_input_shape"
+      ]
+    },
+    {
+      "attempt_index": 3,
+      "attempt_mode": "bw",
+      "extraction_method": "bw_threshold",
+      "failure_reasons": [
+        "resolution_mismatch"
+      ],
+      "grounding": {
+        "entry_points": [],
+        "executed_queries": [],
+        "grounding_chunks": [],
+        "grounding_supports": []
+      },
+      "intermediate_mask_paths": [
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_03_bw_threshold_raw_b684a1e411d6eb36.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\intermediate\\attempt_03_bw_threshold_post_b684a1e411d6eb36.png"
+      ],
+      "overlay_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\overlay\\attempt_03_overlay_30135ef211016495.png",
+      "prompt_id": "bw_v1_fallback",
+      "prompt_text": "Fallback mode: output a pure black-white binary mask image only.\nTarget: polyp\nHard requirements:\n- Exact input resolution\n- ROI white (#FFFFFF), background black (#000000)\n- No gray values, no antialiasing, no text/overlay\nBlob profile: delineate the full visible target extent with a tight but complete boundary.\nMinimum ROI area fraction: 0.0\nMaximum ROI area fraction: 1.0\nMinimum connected components: 1\nMaximum connected components: 1024\nTool mode: text + image grounding enabled. Use retrieval for reasoning only; output must remain original mask surrogate pixels.\nNanoBanana image-generation mode: return one generated image only, with no markdown, JSON, or explanatory text.",
+      "qc_metrics": {
+        "border_touch": true,
+        "component_count": 1,
+        "green_coverage": null,
+        "green_uniformity_proxy": null,
+        "largest_component_frac": 1.0,
+        "mask_area_frac": 0.4293814413572806,
+        "mask_nonempty": true,
+        "resolution_match": false,
+        "speckle_score": 0.0
+      },
+      "qc_pass": false,
+      "raw_request_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\raw\\attempt_03_request.json",
+      "raw_response_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\raw\\attempt_03_response.json",
+      "score": -118.3,
+      "surrogate_image_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\surrogate\\attempt_03_surrogate_37c7367d21034a97.png",
+      "thought_signature_present": true,
+      "thought_signatures": [
+        "<bytes:505555>"
+      ],
+      "thought_summaries": [],
+      "transport_retries": 0,
+      "transport_retry_events": [],
+      "warnings": [
+        "tool_image_search_unavailable_in_sdk",
+        "tool_mode_fallback:text_image->text",
+        "resized_mask_to_input_shape"
+      ]
+    }
+  ],
+  "evaluation": {
+    "dice": 0.7875882325074612,
+    "iou": 0.6496045762870808,
+    "precision": 0.9936882874698162,
+    "recall": 0.652296054490097
+  },
+  "image_id": "01dcc13a-85ab-4d6e-b42b-5d631e076ac2",
+  "image_name": "01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg",
+  "leakage": {
+    "analysis_primary": true,
+    "analysis_sensitivity": true,
+    "audit_status": "audit_unavailable",
+    "audit_unavailable": true,
+    "duplicate_reasons": [],
+    "mask_source_reasons": [],
+    "retrieval_duplicate": false,
+    "retrieval_mask_source": false
+  },
+  "mode": "text_image",
+  "model_config": {
+    "api_surface": "generate_content",
+    "include_thoughts": false,
+    "model_id": "gemini-3.1-flash-image-preview",
+    "thinking_level": "minimal"
+  },
+  "outputs": {
+    "final_mask_hash": "26c562f195787a19bb1624a10290215a1bc71aca37f3c50765905ea5ccf7c6ba",
+    "final_mask_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\final\\final_mask_26c562f195787a19.png",
+    "input_hash": "b587de084b52811b6c2535987e816e66919f3f0a56c6e6551fee85fce31ec0a6",
+    "input_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\01dcc13a-85ab-4d6e-b42b-5d631e076ac2\\text_image\\replicate_0\\nanobanana_polyp_smoke_stage0_20260302-012659\\input\\input_b587de084b52811b.png"
+  },
+  "prompt": {
+    "target": "polyp",
+    "task_profile": "blob",
+    "template_version": "nanobanana_v1"
+  },
+  "replicate_idx": 0,
+  "run_id": "nanobanana_polyp_smoke_stage0_20260302-012659",
+  "split": "unknown",
+  "tool_config": {
+    "query_policy": "model_generated",
+    "scope_policy": "open_web",
+    "snapshot_policy": "live_with_caching",
+    "tool_mode": "text_image"
+  },
+  "warnings": [
+    "tool_image_search_unavailable_in_sdk",
+    "tool_mode_fallback:text_image->text",
+    "resized_mask_to_input_shape"
+  ]
+}

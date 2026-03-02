@@ -1,0 +1,187 @@
+{
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "attempt_mode": "chromakey",
+      "extraction_method": "chromakey_hsv",
+      "failure_reasons": [
+        "empty_mask",
+        "too_few_components",
+        "severe_speckle"
+      ],
+      "grounding": {
+        "entry_points": [],
+        "executed_queries": [],
+        "grounding_chunks": [],
+        "grounding_supports": []
+      },
+      "intermediate_mask_paths": [
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_01_chromakey_hsv_raw_b8e2552ec0978e0d.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_01_chromakey_hsv_post_b8e2552ec0978e0d.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_01_chromakey_ratio_raw_b8e2552ec0978e0d.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_01_chromakey_ratio_post_b8e2552ec0978e0d.png"
+      ],
+      "overlay_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\overlay\\attempt_01_overlay_28b119fd485d0b07.png",
+      "prompt_id": "chromakey_v1",
+      "prompt_text": "Task: Return a segmentation-mask surrogate image for chest radiograph pneumothorax segmentation.\nTarget: pneumothorax\nClinical context: This is a chest radiograph. Segment pleural air (pneumothorax): a peripheral region with absent lung markings beyond the visceral pleural line between collapsed lung and chest wall or mediastinum.\nOutput requirements:\n1) Output image dimensions must exactly match input dimensions.\n2) Two colors only: background exactly #00FF00 and ROI exactly #FFFFFF.\n3) No text, no overlays, no transparency, no gradients, no blur, no antialiasing.\n4) Return only the mask surrogate image.\nExclusions (negative constraints): do not include normal lung parenchyma, mediastinum/heart, ribs, clavicles, scapulae, skin folds, chest tubes, external labels/lines/overlays, or scanner annotations.\nLow-contrast constraint: avoid scattered micro-islands; prefer one contiguous ROI when clinically plausible.\nMinimum ROI area fraction: 0.0\nMaximum ROI area fraction: 0.8\nMinimum connected components: 1\nMaximum connected components: 1024\nTool mode: closed. Do not rely on external retrieval tools.\nNanoBanana image-generation mode: return one generated image only, with no markdown, JSON, or explanatory text.",
+      "qc_metrics": {
+        "border_touch": false,
+        "component_count": 0,
+        "green_coverage": 1.0,
+        "green_uniformity_proxy": 1.6368771947804348,
+        "largest_component_frac": 0.0,
+        "mask_area_frac": 0.0,
+        "mask_nonempty": false,
+        "resolution_match": true,
+        "speckle_score": 1.0
+      },
+      "qc_pass": false,
+      "raw_request_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\raw\\attempt_01_request.json",
+      "raw_response_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\raw\\attempt_01_response.json",
+      "score": -410.4092192986951,
+      "surrogate_image_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\surrogate\\attempt_01_surrogate_b971d54e9eb62bd6.png",
+      "thought_signature_present": true,
+      "thought_signatures": [
+        "<bytes:511932>"
+      ],
+      "thought_summaries": [],
+      "transport_retries": 0,
+      "transport_retry_events": [],
+      "warnings": []
+    },
+    {
+      "attempt_index": 2,
+      "attempt_mode": "chromakey",
+      "extraction_method": "chromakey_ratio",
+      "failure_reasons": [],
+      "grounding": {
+        "entry_points": [],
+        "executed_queries": [],
+        "grounding_chunks": [],
+        "grounding_supports": []
+      },
+      "intermediate_mask_paths": [
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_02_chromakey_hsv_raw_4cb06c57a6018228.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_02_chromakey_hsv_post_592787f9582ac630.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_02_chromakey_ratio_raw_07c49f06c7a930ca.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_02_chromakey_ratio_post_cef5efaef6e4a15c.png"
+      ],
+      "overlay_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\overlay\\attempt_02_overlay_00a4822b9d227467.png",
+      "prompt_id": "chromakey_v2_strict",
+      "prompt_text": "Correction pass. Regenerate the pneumothorax mask surrogate and strictly enforce all constraints.\nTarget: pneumothorax\nHard requirements:\n- Exact input resolution\n- Background every pixel must be #00FF00\n- ROI every pixel must be #FFFFFF\n- Exactly two colors in output\n- No labels/text/graphics\nClinical rule: include only pleural air space consistent with pneumothorax; exclude all non-target structures and artifacts.\nExclusions (strict): normal lung, mediastinum/heart, ribs/clavicles/scapulae, skin folds, lines/tubes, and external overlays.\nIf any requirement cannot be met, still output the best compliant two-color mask image.\nLow-contrast constraint: avoid scattered micro-islands; prefer one contiguous ROI when clinically plausible.\nMinimum ROI area fraction: 0.0\nMaximum ROI area fraction: 0.8\nMinimum connected components: 1\nMaximum connected components: 1024\nTool mode: closed. Do not rely on external retrieval tools.\nNanoBanana image-generation mode: return one generated image only, with no markdown, JSON, or explanatory text.",
+      "qc_metrics": {
+        "border_touch": false,
+        "component_count": 3,
+        "green_coverage": 0.8499135971069336,
+        "green_uniformity_proxy": 1.5405654530020996,
+        "largest_component_frac": 0.791337381987907,
+        "mask_area_frac": 0.1438446044921875,
+        "mask_nonempty": true,
+        "resolution_match": true,
+        "speckle_score": 0.0
+      },
+      "qc_pass": true,
+      "raw_request_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\raw\\attempt_02_request.json",
+      "raw_response_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\raw\\attempt_02_response.json",
+      "score": 1007.6923380627885,
+      "surrogate_image_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\surrogate\\attempt_02_surrogate_620573a2d0bc1529.png",
+      "thought_signature_present": true,
+      "thought_signatures": [
+        "<bytes:533237>"
+      ],
+      "thought_summaries": [],
+      "transport_retries": 0,
+      "transport_retry_events": [],
+      "warnings": []
+    },
+    {
+      "attempt_index": 3,
+      "attempt_mode": "bw",
+      "extraction_method": "bw_threshold",
+      "failure_reasons": [],
+      "grounding": {
+        "entry_points": [],
+        "executed_queries": [],
+        "grounding_chunks": [],
+        "grounding_supports": []
+      },
+      "intermediate_mask_paths": [
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_03_bw_threshold_raw_4c92313d49b78c61.png",
+        "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\intermediate\\attempt_03_bw_threshold_post_3d9d2eb45454c211.png"
+      ],
+      "overlay_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\overlay\\attempt_03_overlay_19c0aec5fa42ae01.png",
+      "prompt_id": "bw_v1_fallback",
+      "prompt_text": "Fallback mode for pneumothorax segmentation.\nTarget: pneumothorax\nHard requirements:\n- Exact input resolution\n- ROI white (#FFFFFF), background black (#000000)\n- No gray values, no antialiasing, no text/overlay\nClinical rule: segment pleural air only.\nExclusions: normal lung, mediastinum/heart, osseous structures, skin folds, tubes/lines, and external annotations.\nLow-contrast constraint: avoid scattered micro-islands; prefer one contiguous ROI when clinically plausible.\nMinimum ROI area fraction: 0.0\nMaximum ROI area fraction: 0.8\nMinimum connected components: 1\nMaximum connected components: 1024\nTool mode: closed. Do not rely on external retrieval tools.\nNanoBanana image-generation mode: return one generated image only, with no markdown, JSON, or explanatory text.",
+      "qc_metrics": {
+        "border_touch": false,
+        "component_count": 1,
+        "green_coverage": null,
+        "green_uniformity_proxy": null,
+        "largest_component_frac": 1.0,
+        "mask_area_frac": 0.10998344421386719,
+        "mask_nonempty": true,
+        "resolution_match": true,
+        "speckle_score": 0.0
+      },
+      "qc_pass": true,
+      "raw_request_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\raw\\attempt_03_request.json",
+      "raw_response_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\raw\\attempt_03_response.json",
+      "score": 1001.7,
+      "surrogate_image_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\surrogate\\attempt_03_surrogate_a402706962aaa356.png",
+      "thought_signature_present": true,
+      "thought_signatures": [
+        "<bytes:546244>"
+      ],
+      "thought_summaries": [],
+      "transport_retries": 0,
+      "transport_retry_events": [],
+      "warnings": []
+    }
+  ],
+  "evaluation": {
+    "dice": 0.0,
+    "iou": 0.0,
+    "precision": 0.0,
+    "recall": 0.0
+  },
+  "image_id": "1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474",
+  "image_name": "1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474.png",
+  "leakage": {
+    "analysis_primary": true,
+    "analysis_sensitivity": true,
+    "audit_status": "audit_unavailable",
+    "audit_unavailable": true,
+    "duplicate_reasons": [],
+    "mask_source_reasons": [],
+    "retrieval_duplicate": false,
+    "retrieval_mask_source": false
+  },
+  "mode": "closed",
+  "model_config": {
+    "api_surface": "generate_content",
+    "include_thoughts": false,
+    "model_id": "gemini-3.1-flash-image-preview",
+    "thinking_level": "minimal"
+  },
+  "outputs": {
+    "final_mask_hash": "cef5efaef6e4a15c919d162d9c12e25670da774330cadc24a201d0cf810c70e2",
+    "final_mask_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\final\\final_mask_cef5efaef6e4a15c.png",
+    "input_hash": "28b119fd485d0b073cef7be4316e4e949a059dbbe56ae8d474f431579825b5e1",
+    "input_path": "D:\\Projects\\gemini_image_segmentation\\artifacts_nanobanana\\1.2.276.0.7230010.3.1.4.8323329.10006.1517875220.954474\\closed\\replicate_0\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803\\input\\input_28b119fd485d0b07.png"
+  },
+  "prompt": {
+    "target": "pneumothorax",
+    "task_profile": "low_contrast",
+    "template_version": "nanobanana_v1"
+  },
+  "replicate_idx": 0,
+  "run_id": "nanobanana_pneumothorax_smoke_desc_neg_stage0_20260301-215803",
+  "split": "unknown",
+  "tool_config": {
+    "query_policy": "model_generated",
+    "scope_policy": "open_web",
+    "snapshot_policy": "live_with_caching",
+    "tool_mode": "closed"
+  },
+  "warnings": []
+}

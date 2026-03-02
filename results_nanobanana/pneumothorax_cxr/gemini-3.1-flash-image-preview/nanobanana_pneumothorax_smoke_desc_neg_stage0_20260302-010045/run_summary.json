@@ -1,0 +1,256 @@
+{
+  "dataset_name": "pneumothorax_cxr",
+  "dataset_root": "D:\\Projects\\gemini_image_segmentation\\data\\SLIM_ACR",
+  "execution": {
+    "budget": {
+      "max_attempts_total": null,
+      "max_cost_usd": null
+    },
+    "client_timeout_s": 120,
+    "constraints": {
+      "allow_border_touch": true,
+      "max_area_frac": 0.8,
+      "max_components": 1024,
+      "min_area_frac": 0.0,
+      "min_components": 1,
+      "single_component": false
+    },
+    "fail_fast": true,
+    "max_retries_semantic": 3,
+    "max_retries_transport": 3,
+    "mode": "auto",
+    "progress_log_interval_seconds": 20,
+    "progress_poll_seconds": 2,
+    "prompts_path": "configs/nanobanana/prompts_pneumothorax_desc_neg.yaml",
+    "stall_warning_seconds": 180,
+    "task_profile": "low_contrast",
+    "workers": 6
+  },
+  "failures": [],
+  "matrix": {
+    "replicates": 1,
+    "thinking_levels": [
+      "minimal"
+    ],
+    "tool_modes": [
+      "closed",
+      "text",
+      "image",
+      "text_image"
+    ]
+  },
+  "model": {
+    "api_surface": "generate_content",
+    "cost_per_attempt_usd": 0.01,
+    "include_thoughts": false,
+    "model_id": "gemini-3.1-flash-image-preview",
+    "model_style": "nanobanana_v1",
+    "use_otsu_bw": false
+  },
+  "n_failures": 0,
+  "n_rows": 40,
+  "n_tasks": 40,
+  "reports": {
+    "analysis_partitions": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\analysis_partition_counts.csv",
+    "delta_plot": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\primary_delta_plot.png",
+    "delta_plot_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\primary_delta_plot.png",
+    "delta_plot_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\sensitivity_delta_plot.png",
+    "paired_delta": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\paired_delta_vs_closed_primary.csv",
+    "paired_delta_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\paired_delta_vs_closed_primary.csv",
+    "paired_delta_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\paired_delta_vs_closed_sensitivity.csv",
+    "qc_failure": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\qc_failure_summary_primary.csv",
+    "qc_failure_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\qc_failure_summary_primary.csv",
+    "qc_failure_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\qc_failure_summary_sensitivity.csv",
+    "qc_plot": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\primary_qc_failure_bar.png",
+    "qc_plot_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\primary_qc_failure_bar.png",
+    "qc_plot_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\sensitivity_qc_failure_bar.png",
+    "retrieval": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\retrieval_audit_summary.csv",
+    "summary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\summary_by_mode_primary.csv",
+    "summary_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\summary_by_mode_primary.csv",
+    "summary_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\reports\\summary_by_mode_sensitivity.csv"
+  },
+  "results_csv": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\pneumothorax_cxr\\gemini-3.1-flash-image-preview\\nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045\\results.csv",
+  "retrieval": {
+    "include_audit_unavailable_in_primary": true,
+    "primary_exclude_duplicates": true,
+    "primary_exclude_mask_source": true,
+    "query_policy": "model_generated",
+    "scope_policy": "open_web",
+    "snapshot_policy": "live_with_caching"
+  },
+  "run_id": "nanobanana_pneumothorax_smoke_desc_neg_stage0_20260302-010045",
+  "stage": "stage0",
+  "stall_events": [
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10026.1517875221.22915.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 23
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=closed thinking=minimal replicate=0",
+      "task_index": 24
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=text thinking=minimal replicate=0",
+      "task_index": 25
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=image thinking=minimal replicate=0",
+      "task_index": 26
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 27
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=closed thinking=minimal replicate=0",
+      "task_index": 28
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=text thinking=minimal replicate=0",
+      "task_index": 29
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=image thinking=minimal replicate=0",
+      "task_index": 30
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 31
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=closed thinking=minimal replicate=0",
+      "task_index": 32
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=text thinking=minimal replicate=0",
+      "task_index": 33
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=image thinking=minimal replicate=0",
+      "task_index": 34
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 35
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=closed thinking=minimal replicate=0",
+      "task_index": 36
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=text thinking=minimal replicate=0",
+      "task_index": 37
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=image thinking=minimal replicate=0",
+      "task_index": 38
+    },
+    {
+      "elapsed_seconds": 181.547,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 39
+    },
+    {
+      "elapsed_seconds": 186.656,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10026.1517875221.22915.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 23
+    },
+    {
+      "elapsed_seconds": 197.984,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=text thinking=minimal replicate=0",
+      "task_index": 25
+    },
+    {
+      "elapsed_seconds": 208.468,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=image thinking=minimal replicate=0",
+      "task_index": 26
+    },
+    {
+      "elapsed_seconds": 208.89,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=closed thinking=minimal replicate=0",
+      "task_index": 24
+    },
+    {
+      "elapsed_seconds": 211.406,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10031.1517875221.31204.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 27
+    },
+    {
+      "elapsed_seconds": 227.859,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=closed thinking=minimal replicate=0",
+      "task_index": 28
+    },
+    {
+      "elapsed_seconds": 228.156,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=text thinking=minimal replicate=0",
+      "task_index": 29
+    },
+    {
+      "elapsed_seconds": 246.64,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=closed thinking=minimal replicate=0",
+      "task_index": 32
+    },
+    {
+      "elapsed_seconds": 247.218,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=image thinking=minimal replicate=0",
+      "task_index": 30
+    },
+    {
+      "elapsed_seconds": 248.859,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=text thinking=minimal replicate=0",
+      "task_index": 33
+    },
+    {
+      "elapsed_seconds": 250.0,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10032.1517875221.34651.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 31
+    },
+    {
+      "elapsed_seconds": 264.656,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=image thinking=minimal replicate=0",
+      "task_index": 34
+    },
+    {
+      "elapsed_seconds": 276.531,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10034.1517875221.47394.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 35
+    },
+    {
+      "elapsed_seconds": 285.953,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=image thinking=minimal replicate=0",
+      "task_index": 38
+    },
+    {
+      "elapsed_seconds": 294.781,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=text thinking=minimal replicate=0",
+      "task_index": 37
+    },
+    {
+      "elapsed_seconds": 304.718,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=text_image thinking=minimal replicate=0",
+      "task_index": 39
+    },
+    {
+      "elapsed_seconds": 313.875,
+      "task": "image=1.2.276.0.7230010.3.1.4.8323329.10037.1517875221.677730.png mode=closed thinking=minimal replicate=0",
+      "task_index": 36
+    }
+  ],
+  "target": "pneumothorax"
+}

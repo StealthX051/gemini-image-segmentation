@@ -1,0 +1,276 @@
+{
+  "dataset_name": "polyp",
+  "dataset_root": "D:\\Projects\\gemini_image_segmentation\\segmented-images",
+  "execution": {
+    "budget": {
+      "max_attempts_total": null,
+      "max_cost_usd": null
+    },
+    "client_timeout_s": 120,
+    "constraints": {
+      "allow_border_touch": true,
+      "max_area_frac": 1.0,
+      "max_components": 1024,
+      "min_area_frac": 0.0,
+      "min_components": 1,
+      "single_component": false
+    },
+    "fail_fast": true,
+    "max_retries_semantic": 3,
+    "max_retries_transport": 3,
+    "mode": "auto",
+    "progress_log_interval_seconds": 20,
+    "progress_poll_seconds": 2,
+    "prompts_path": "configs/nanobanana/prompts.yaml",
+    "stall_warning_seconds": 180,
+    "task_profile": "blob",
+    "workers": 6
+  },
+  "failures": [],
+  "matrix": {
+    "replicates": 1,
+    "thinking_levels": [
+      "minimal"
+    ],
+    "tool_modes": [
+      "closed",
+      "text",
+      "image",
+      "text_image"
+    ]
+  },
+  "model": {
+    "api_surface": "generate_content",
+    "cost_per_attempt_usd": 0.01,
+    "include_thoughts": false,
+    "model_id": "gemini-3.1-flash-image-preview",
+    "model_style": "nanobanana_v1",
+    "use_otsu_bw": false
+  },
+  "n_failures": 0,
+  "n_rows": 40,
+  "n_tasks": 40,
+  "reports": {
+    "analysis_partitions": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\analysis_partition_counts.csv",
+    "delta_plot": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\primary_delta_plot.png",
+    "delta_plot_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\primary_delta_plot.png",
+    "delta_plot_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\sensitivity_delta_plot.png",
+    "paired_delta": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\paired_delta_vs_closed_primary.csv",
+    "paired_delta_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\paired_delta_vs_closed_primary.csv",
+    "paired_delta_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\paired_delta_vs_closed_sensitivity.csv",
+    "qc_failure": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\qc_failure_summary_primary.csv",
+    "qc_failure_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\qc_failure_summary_primary.csv",
+    "qc_failure_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\qc_failure_summary_sensitivity.csv",
+    "qc_plot": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\primary_qc_failure_bar.png",
+    "qc_plot_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\primary_qc_failure_bar.png",
+    "qc_plot_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\sensitivity_qc_failure_bar.png",
+    "retrieval": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\retrieval_audit_summary.csv",
+    "summary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\summary_by_mode_primary.csv",
+    "summary_primary": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\summary_by_mode_primary.csv",
+    "summary_sensitivity": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\reports\\summary_by_mode_sensitivity.csv"
+  },
+  "results_csv": "D:\\Projects\\gemini_image_segmentation\\results_nanobanana\\polyp\\gemini-3.1-flash-image-preview\\nanobanana_polyp_smoke_stage0_20260302-012659\\results.csv",
+  "retrieval": {
+    "include_audit_unavailable_in_primary": true,
+    "primary_exclude_duplicates": true,
+    "primary_exclude_mask_source": true,
+    "query_policy": "model_generated",
+    "scope_policy": "open_web",
+    "snapshot_policy": "live_with_caching"
+  },
+  "run_id": "nanobanana_polyp_smoke_stage0_20260302-012659",
+  "stage": "stage0",
+  "stall_events": [
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=0198bc50-169e-456c-a56b-970a7f7d23b7.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 21
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=0198bc50-169e-456c-a56b-970a7f7d23b7.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 22
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=0198bc50-169e-456c-a56b-970a7f7d23b7.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 23
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 24
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 25
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 26
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 27
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 28
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 29
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 30
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 31
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 32
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 33
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 34
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 35
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 36
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 37
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 38
+    },
+    {
+      "elapsed_seconds": 181.234,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 39
+    },
+    {
+      "elapsed_seconds": 186.531,
+      "task": "image=0198bc50-169e-456c-a56b-970a7f7d23b7.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 23
+    },
+    {
+      "elapsed_seconds": 187.765,
+      "task": "image=0198bc50-169e-456c-a56b-970a7f7d23b7.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 22
+    },
+    {
+      "elapsed_seconds": 194.781,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 24
+    },
+    {
+      "elapsed_seconds": 199.531,
+      "task": "image=0198bc50-169e-456c-a56b-970a7f7d23b7.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 21
+    },
+    {
+      "elapsed_seconds": 208.906,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 25
+    },
+    {
+      "elapsed_seconds": 212.547,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 26
+    },
+    {
+      "elapsed_seconds": 219.39,
+      "task": "image=01c95ee8-79cc-46f4-a6a0-834d8a6045d4.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 27
+    },
+    {
+      "elapsed_seconds": 223.89,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 28
+    },
+    {
+      "elapsed_seconds": 234.515,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 29
+    },
+    {
+      "elapsed_seconds": 241.14,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 31
+    },
+    {
+      "elapsed_seconds": 241.343,
+      "task": "image=01dbf397-c0fc-40e7-9b04-86de70781c9a.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 30
+    },
+    {
+      "elapsed_seconds": 255.453,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 32
+    },
+    {
+      "elapsed_seconds": 259.203,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 34
+    },
+    {
+      "elapsed_seconds": 267.64,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 33
+    },
+    {
+      "elapsed_seconds": 273.234,
+      "task": "image=01dcc13a-85ab-4d6e-b42b-5d631e076ac2.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 35
+    },
+    {
+      "elapsed_seconds": 280.25,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=closed thinking=minimal replicate=0",
+      "task_index": 36
+    },
+    {
+      "elapsed_seconds": 281.281,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=text thinking=minimal replicate=0",
+      "task_index": 37
+    },
+    {
+      "elapsed_seconds": 290.562,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=image thinking=minimal replicate=0",
+      "task_index": 38
+    },
+    {
+      "elapsed_seconds": 300.531,
+      "task": "image=01e6cfd7-bdb6-4929-9fc0-9a7dd2d3c7f7.jpg mode=text_image thinking=minimal replicate=0",
+      "task_index": 39
+    }
+  ],
+  "target": "polyp"
+}

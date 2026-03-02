@@ -1,0 +1,24 @@
+{
+  "api_surface": "generate_content",
+  "config": {
+    "response_modalities": [
+      "IMAGE"
+    ],
+    "thinking_config": {
+      "include_thoughts": null,
+      "thinking_budget": 0,
+      "thinking_level": null
+    }
+  },
+  "contents": [
+    "<image/png bytes>",
+    "Task: Return a segmentation-mask surrogate image for the target structure only.\nTarget: polyp\nOutput requirements:\n1) Output image dimensions must exactly match input dimensions.\n2) Two colors only: background exactly #00FF00 and ROI exactly #FFFFFF.\n3) No text, no overlays, no transparency, no gradients, no blur, no antialiasing.\n4) Return only the mask surrogate image.\nBlob profile: delineate the full visible target extent with a tight but complete boundary.\nMinimum ROI area fraction: 0.0\nMaximum ROI area fraction: 1.0\nMinimum connected components: 1\nMaximum connected components: 1024\nTool mode: closed. Do not rely on external retrieval tools.\nNanoBanana image-generation mode: return one generated image only, with no markdown, JSON, or explanatory text."
+  ],
+  "include_thoughts": false,
+  "model": "gemini-3.1-flash-image-preview",
+  "thinking_level": "minimal",
+  "tool_mode_effective": "closed",
+  "tool_mode_requested": "closed",
+  "tools_payload": [],
+  "warnings": []
+}
