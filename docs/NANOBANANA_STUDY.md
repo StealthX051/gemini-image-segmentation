@@ -257,6 +257,12 @@ Mitigations now in code:
   - `raw/`
   - `run_record.json`
 
+### Git tracking hygiene
+- Generated NanoBanana outputs are intended to remain local runtime artifacts.
+- `.gitignore` excludes both `results_nanobanana/` and `artifacts_nanobanana/`.
+- If these paths were tracked before ignore rules were added, untrack once (files stay on disk):
+  - `git rm --cached -r results_nanobanana artifacts_nanobanana`
+
 ## 12) RunRecord contract
 Run record captures:
 - IDs (run/image/split/mode/replicate)

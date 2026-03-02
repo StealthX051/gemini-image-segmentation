@@ -32,6 +32,7 @@ Last updated: 2026-02-26.
 
 ## Critical Gotchas
 - `.env` is not auto-loaded into shell process env vars by the CLI. Export env vars in the active shell before running.
+- Ignore rules do not affect already tracked files. If NanoBanana run artifacts were committed previously, untrack them once with `git rm --cached -r results_nanobanana artifacts_nanobanana`.
 - Replicate fairness discovery in batch uses the Replicate output model label (`replicate_model_version`) rather than the matrix display name.
 - Replicate preflight validates token presence but cannot validate account credits/billing state; runtime can still fail with `429` create-prediction throttling on unfunded accounts.
 - Replicate model-version IDs must be exact and accessible; invalid/inaccessible versions return `422 Invalid version or not permitted`.

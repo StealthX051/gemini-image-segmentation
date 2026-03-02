@@ -160,7 +160,7 @@ During non-dry-run execution, the batch runner streams each active job's stdout/
 
 The orchestrator executes jobs sequentially by default, continues after failures, and returns non-zero if any segment/fairness job fails.
 
-Generated runtime artifacts (`results/`, `outputs/`, `artifacts/`) are ignored by default in `.gitignore` to keep repository status clean during long benchmark runs.
+Generated runtime artifacts (`results/`, `outputs/`, `artifacts/`, `results_nanobanana/`, `artifacts_nanobanana/`) are ignored by default in `.gitignore` to keep repository status clean during long benchmark runs.
 
 ### Outputs (per run)
 ```
@@ -304,5 +304,9 @@ This repo also includes an isolated NanoBanana package under `src/nanobanana_seg
 - Default artifact roots:
   - `results_nanobanana/`
   - `artifacts_nanobanana/`
+- Git hygiene for generated run data:
+  - If these folders were previously committed, ignore rules will not retroactively untrack them.
+  - Run once to remove them from the index while keeping local files:
+    - `git rm --cached -r results_nanobanana artifacts_nanobanana`
 - Full operational details:
   - `docs/NANOBANANA_STUDY.md`

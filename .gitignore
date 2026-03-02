@@ -23,6 +23,8 @@ data_readability/
 outputs/
 results/
 artifacts/
+results_nanobanana/
+artifacts_nanobanana/
 hyper-kvasir-segmentation.zip
 *.png
 *.jpg
