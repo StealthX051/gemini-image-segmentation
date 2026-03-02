@@ -64,7 +64,7 @@ If a placeholder variable is missing, the run exits before any job starts.
 
 ## Local Override Pattern
 - Commit base matrix config, for example `configs/benchmarks/ablation_robotics_canonical.yaml`.
-- Keep machine-specific values in an untracked local override file, for example `configs/benchmarks/ablation_robotics_canonical.local.yaml`.
+- Create machine-specific values in an untracked local override file (for example `<local_override.yaml>`) by copying from `configs/benchmarks/ablation_robotics_canonical.local.example.yaml`.
 - Merge behavior:
   - mappings are merged recursively,
   - scalar values are replaced,
@@ -126,7 +126,7 @@ Run in tmux:
 tmux new -s seg_batch
 ./scripts/launch_batch.sh \
   --config configs/benchmarks/ablation_robotics_canonical.yaml \
-  --overrides configs/benchmarks/ablation_robotics_canonical.local.yaml \
+  --overrides configs/benchmarks/ablation_robotics_canonical.local.example.yaml \
   --run-id ablation_robotics_20260218-1900 \
   --auto-fairness
 ```
@@ -136,7 +136,7 @@ Run with nohup:
 ```bash
 nohup ./scripts/launch_batch.sh \
   --config configs/benchmarks/ablation_robotics_canonical.yaml \
-  --overrides configs/benchmarks/ablation_robotics_canonical.local.yaml \
+  --overrides configs/benchmarks/ablation_robotics_canonical.local.example.yaml \
   --run-id ablation_robotics_20260218-1900 \
   > results/batches/ablation_robotics_20260218-1900/nohup.log 2>&1 &
 ```

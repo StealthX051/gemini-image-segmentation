@@ -70,7 +70,8 @@ This document keeps implementation changes aligned with:
 - Manuscript-ready enhanced fairness method text should be sourced from `docs/FAIRNESS_ENHANCED_METHODS.md` to keep claims aligned with implementation details (region strategy, ITA estimator, covariates, trend models, and sensitivity definitions).
 - Fairness paper artifact generation (`python -m gemini_segmentation.paper.figures --fairness-dir <.../fairness>`) may emit both combined Figure 2 and standalone panel exports (`figure2_panel_a` to `figure2_panel_d` in PNG/PDF/SVG); this is a presentation/export change only and does not alter fairness computations.
 - Enhanced fairness manuscript artifact generation (`python -m gemini_segmentation.paper.figures_enhanced --fairness-enhanced-dir <.../fairness_enhanced>`) emits E-numbered figure/table assets plus a narrative report (`md|html|pdf|docx`) while preserving proxy-language/non-causal framing and leaving legacy Figure 2/Table 4 tooling unchanged.
-- When method semantics change, update `src/gemini_segmentation/prompts.py`.
-- When method semantics change, update `configs/prompts.yaml`.
-- When method semantics change, update relevant tests in `tests/test_prompts.py` and `tests/test_cli.py`.
-- When method semantics change, update this document and manuscript-facing methods text in `README.md`.
+- When method semantics change, update in the same change:
+  - `src/gemini_segmentation/prompts.py`
+  - `configs/prompts.yaml`
+  - relevant tests (`tests/test_prompts.py`, `tests/test_cli.py`)
+  - this document and manuscript-facing methods text in `README.md`

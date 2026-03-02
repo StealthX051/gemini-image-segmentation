@@ -1,19 +1,20 @@
 # Gemini Image Segmentation
 
-This repository contains two parallel workflows for evaluating Google Gemini models on medical-image segmentation tasks:
+This repository contains two primary segmentation workflows plus one isolated study lane:
 
 1. **Legacy Jupyter notebooks** that encode the original experiments per dataset (polyp, optic disc, dermatology, BUSI breast ultrasound, chest X-ray pneumothorax, LiTS liver lesions, histopathology, and laparoscopy). Each notebook’s first cell is a linear Python script with helper functions, dataset discovery, Gemini calls, and metrics.
 2. **A modular CLI** (`python -m gemini_segmentation.cli`) that lifts the notebook logic into reusable modules with resumable runs, centralized outputs, and fairness analysis.
-
-Read this document top-to-bottom when onboarding: it explains the environment, directory layout, how the notebooks work, how the CLI mirrors them, and where to extend the system (prompts, models, fairness, outputs).
+3. **An isolated NanoBanana package** (`src/nanobanana_segmentation/`) for retrieval/tool-ablation studies and a separate segmentation microservice path that does not modify `gemini_segmentation` runtime contracts.
 
 ## Agentic development files
 - `AGENTS.md`: repository-level instructions for coding agents.
 - `.codex/config.toml`: repo-local Codex defaults (model/sandbox/doc discovery).
 - `CONTRIBUTING.md`: contributor workflow and validation commands.
+- `docs/DOCUMENTATION_MAP.md`: canonical documentation ownership map and update policy.
 - `docs/ARCHITECTURE.md`: module boundaries, contracts, and extension points.
 - `docs/MANUSCRIPT_ALIGNMENT.md`: manuscript + post hoc method alignment constraints.
 - `docs/AGENT_HANDOFF.md`: current operational handoff for new agent sessions.
+- `docs/VALIDATION_SNAPSHOTS.md`: archived point-in-time run IDs/metric snapshots and historical smoke command variants.
 - `docs/GEMINI_CACHING.md`: Gemini/API caching support notes and benchmark run guidance.
 - `docs/BATCH_ORCHESTRATION.md`: unattended matrix-runner workflow and config schema.
 - `docs/METHODS_CHANGELOG.md`: ordered method-version and change-ID history.
@@ -39,29 +40,26 @@ Read this document top-to-bottom when onboarding: it explains the environment, d
 - `results/`: created by the CLI to hold centralized outputs (safe to delete/regenerate).
 
 ## Legacy notebook workflow
-The notebook pairs share the same structure and remain runnable without moving input files.
-
-1. **Bootstrap**: First cell imports helpers, loads `.env`, checks dataset roots (e.g., `HK_SEG_DIR` for Hyper-Kvasir defaults to `segmented-images/` with `images/` and `masks/`), and optionally installs missing pip packages.
-2. **Dataset discovery**: Confirms `images/` and `masks/` exist; builds `master_imagelist_<dataset>.txt` and optional pilot lists (`pilot50_*.txt`) in place.
-3. **Segmentation primitives**: Defines `SegmentationMask` plus `parse_json`/`parse_segmentation_masks` to convert Gemini responses (bounding boxes + base64 masks) into full-resolution masks; overlay utilities draw masks/labels for QA.
-4. **Gemini call**: `gemini_seg` resizes large images to ≤1024 px, encodes JPEG bytes, and calls `gemini-2.5-*` with configurable prompt, temperature, thinking budget, and safety settings. Calls were typically serial, with optional ad-hoc threads inside the notebook.
-5. **Batch evaluation**: The evaluation notebook loops over `master_imagelist_*`, respects sampling and rate-limit sleeps, and can write per-image prediction JSON under the dataset root in `predictions_<model>/` without relocating inputs.
-6. **Metrics**: Computes IoU/Dice per image, aggregates means/medians with bootstrap CIs, and records parse/time-out flags. Fairness analysis relies on these masks plus ground-truth masks.
-7. **Fairness (notebook)**: `ita_fitzpatrick_analysis.ipynb` converts peri-lesional skin to L*a*b*, filters luminance (data-driven window with ≥2% area and ≥200 pixels), maps median ITA to Chardon/Fitzpatrick-like labels, and reports IoU/Dice summaries and statistical tests (Kruskal–Wallis, Dunn + Holm–Bonferroni, Cliff’s Delta, χ² success rates).
+Notebook pairs share one pattern and remain runnable in-place:
+1. **Bootstrap**: load helpers/env vars, validate dataset roots (`images/`, `masks/`), optionally install missing packages.
+2. **Discovery/manifests**: build `master_imagelist_<dataset>.txt` and optional pilot lists (`pilot50_*.txt`) in place.
+3. **Segmentation primitives**: parse Gemini (`box_2d`, base64 mask) into full-resolution masks and render QA overlays.
+4. **Inference**: call `gemini-2.5-*` on ≤1024px resized images with configurable prompt/temperature/thinking/safety; typically serial with optional ad-hoc threading.
+5. **Evaluation**: iterate manifests with optional sampling/rate-limit sleeps; optionally emit `predictions_<model>/` JSON under dataset roots.
+6. **Metrics/fairness inputs**: compute IoU/Dice + bootstrap summaries + parse/timeout flags from predicted and GT masks.
+7. **Notebook fairness**: `ita_fitzpatrick_analysis.ipynb` computes peri-lesional ITA groupings and reports IoU/Dice + nonparametric statistics (Kruskal–Wallis, Dunn+Holm-Bonferroni, Cliff’s Delta, χ² success rates).
 
 ## Modular CLI
-The CLI mirrors the notebook behavior while consolidating outputs under `results/<dataset>/<model>/<run_id>/` and preserving legacy inputs.
+The CLI mirrors the notebook behavior while consolidating outputs under `results/<dataset>/<model>/<prompt_key>/<run_id>/` and preserving legacy inputs.
 
 ### Installation
 ```bash
 conda env create -f environment.yml
-conda activate gemini-segmentation
+conda activate gemini_seg
 python -m pip install -e .
 ```
-Ensure `.env` contains `GOOGLE_API_KEY`.
-For CLI runs in PowerShell, export `.env` into process env vars before invoking the CLI.
-
-For quick test runs without Conda, install the minimal test dependencies with:
+Ensure `.env` contains API keys; CLI commands require env vars in the active shell process (the CLI does not auto-load `.env`).
+For quick non-Conda test runs, install minimal test deps:
 
 ```bash
 pip install -r requirements-dev.txt
@@ -78,17 +76,20 @@ python -c "import docx; print(docx.__file__)"
 ### Commands
 - `segment`: Run Gemini, Moondream, or Replicate on a dataset without changing source files.
   - Required: `segment <dataset_name> <dataset_root>` (must contain `images/` and `masks/`, plus any existing manifest files).
-  - Key options: `--manifest` to target curated lists (e.g., `pilot50_*`) without rewriting `master_imagelist_*`; `--prompt`/`--prompt-file` or `--prompt-preset configs/prompts.yaml --preset-name <name>`; `--model-name`, `--temperature`, `--thinking-budget`, `--timeout`, `--max-retries`, `--workers`, `--rate-limit`, `--sample-size`, `--success-threshold`, `--bootstrap-method` (`bca` or `percentile`) and `--bootstrap-resamples` (default 5000) for summary stats; `--legacy-predictions` (emit notebook-style JSON near the inputs for back-compat); `--dry-run` (list pending images without calling the API).
-  - Retry behavior: `--max-retries` defaults to `5` and retries timeout/parse-failure call outcomes.
-  - Local request cache (all providers): `--local-cache/--no-local-cache` and `--local-cache-dir` to reuse prior request outputs across runs and reduce repeat API calls.
-  - Gemini explicit context cache: `--gemini-explicit-cache/--no-gemini-explicit-cache` and `--gemini-cache-ttl` (seconds). Explicit cache is attempted automatically for Gemini models except robotics ER, where Gemini docs list caching as unsupported.
+  - Prompt selection: `--prompt`, `--prompt-file`, or `--prompt-preset configs/prompts.yaml --preset-name <name> [--preset-branch legacy]`.
+  - Execution controls: `--model-name`, `--provider`, `--temperature`, `--thinking-budget`, `--timeout`, `--max-retries` (default `5`), `--workers`, `--rate-limit`, `--sample-size`, `--results-dir`, `--run-id`, `--dry-run`.
+  - Metrics controls: `--success-threshold`, `--bootstrap-method` (`bca|percentile`), `--bootstrap-resamples` (default `5000`).
+  - Cache controls: `--local-cache/--no-local-cache`, `--local-cache-dir`; Gemini explicit cache: `--gemini-explicit-cache/--no-gemini-explicit-cache`, `--gemini-cache-ttl`.
+  - Back-compat/output controls: `--manifest`, `--legacy-predictions`, `--replicate-cache-dir`.
+  - Provider-specific target/instruction controls: `--moondream-target`, `--moondream-endpoint`, `--moondream-api-key`, `--replicate-model-version`, `--replicate-target`, `--replicate-instruction`.
+  - Explicit Gemini cache is auto-skipped for robotics ER (`gemini-robotics-er-1.5-preview`).
   - Provider selection: `--provider gemini` (default), `--provider moondream`, or `--provider replicate`. For Moondream, pass `--model-name moondream-3` (auto-applied if you keep the default) and optionally `--moondream-target` multiple times to request one API call per object label (otherwise the prompt text is used as the target). Use `--moondream-endpoint` for a local Moondream Station deployment or rely on `MOONDREAM_API_KEY`/`--moondream-api-key` for cloud calls.
   - Model selection: pass the Gemini model ID via `--model-name`. The default is `gemini-2.5-flash`, and you can explicitly target `gemini-2.5-flash-lite` or `gemini-robotics-er-1.5-preview` the same way.
   - Preset caveat: some presets in `configs/prompts.yaml` include a `model` field and can override CLI `--model-name`; avoid those presets when running strict cross-model comparisons.
   - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
   - Replicate operational caveat (2026-02-19): accounts without payment method/credits can be throttled aggressively (for example, create-prediction `429` with ~`6/min` and burst `1` as observed in validation). For smoke tests on throttled accounts, start with `--workers 1 --rate-limit 12` (increase to `15` if needed).
   - Replicate version caveat: `--replicate-model-version` must be a valid, accessible version ID. Invalid or inaccessible IDs return `422 Invalid version or not permitted`.
-  - Replicate validation status (2026-02-19): end-to-end SA2VA implementation is validated, including a completed full polyp 3-family batch run (`replicate_sa2va_polyp_full_20260219-162118`) with 1000 predictions per family. See `docs/AGENT_HANDOFF.md` for exact run paths and per-family metrics.
+  - Replicate validation status (2026-02-19): end-to-end SA2VA implementation is validated, including a completed full polyp 3-family batch run (`replicate_sa2va_polyp_full_20260219-162118`) with 1000 predictions per family. See `docs/VALIDATION_SNAPSHOTS.md` for exact run paths and per-family metrics.
 - `fairness`: Compute dermoscopy fairness artifacts from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--audit-mode legacy|enhanced] [--enhanced-config configs/fairness_enhanced.yaml] [--enhanced-stage all|core|sensitivity|augment] [--enhanced-feature-profile balanced|full|minimal] [--enhanced-augment-columns <csv>] [--enhanced-resume|--no-enhanced-resume] [--enhanced-checkpoint-every N] [--enhanced-workers-auto|--no-enhanced-workers-auto] [--manifest] [--sample-size] [--workers] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`.
   - `--audit-mode legacy` (default): preserves the historical ITA/Fitzpatrick CSV schema under `<run_dir>/fairness/`.
   - `--audit-mode enhanced`: runs Fairness Audit v2 and writes expanded artifacts under `<run_dir>/fairness_enhanced/`.
@@ -96,14 +97,14 @@ python -c "import docx; print(docx.__file__)"
 - `python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <results/.../run_id> [--dataset-root <path>]`: Generate IMA++ sensitivity artifacts against MV consensus and annotator masks under `<run_dir>/ima_plusplus_sensitivity/`.
 
 ### Benchmark matrix automation
-Use the batch orchestrator to run full prompt-ablation matrices unattended across models and datasets:
+Use the batch orchestrator for unattended prompt-ablation matrices:
 
 - Entrypoint: `python -m gemini_segmentation.batch --config configs/benchmarks/ablation_robotics_canonical.yaml [flags]`
 - Thin launcher (auto-loads `.env` into the shell process): `./scripts/launch_batch.sh --config configs/benchmarks/ablation_robotics_canonical.yaml`
-- Optional local overrides: `--overrides configs/benchmarks/ablation_robotics_canonical.local.yaml`
+- Optional local overrides: `--overrides <your_local_override.yaml>` (seed from `configs/benchmarks/ablation_robotics_canonical.local.example.yaml`)
 - Stable run IDs: pass `--run-id`, otherwise default is `<study_id>_<YYYYMMDD-HHMMSS>`
 - Filters: repeat `--only-dataset` and/or `--only-model` to run a subset.
-- Optional fairness phase: add `--auto-fairness`
+- Optional fairness phase: `--auto-fairness`
 - Planning mode: `--dry-run` validates config/preflight and writes planned jobs without API calls.
 - Windows convenience runner (polyp full dataset, 3x3, workers=10, live monitor): `.\scripts\run_polyp_full_3x3_w10.ps1`
 
@@ -114,18 +115,13 @@ Quick examples:
 python -m gemini_segmentation.batch \
   --config configs/benchmarks/ablation_robotics_canonical.yaml
 
-# Only robotics ER on two datasets with fixed run-id
+# Filtered subset with fixed run-id
 python -m gemini_segmentation.batch \
   --config configs/benchmarks/ablation_robotics_canonical.yaml \
   --only-model gemini-robotics-er-1.5-preview \
   --only-dataset polyp \
   --only-dataset derm_lesion \
   --run-id ablation_robotics_subset_20260218-1530
-
-# Same matrix with fairness post-step enabled
-python -m gemini_segmentation.batch \
-  --config configs/benchmarks/ablation_robotics_canonical.yaml \
-  --auto-fairness
 
 # Replicate/Sa2VA batch using local override config
 python -m gemini_segmentation.batch \
@@ -146,7 +142,9 @@ Resume an interrupted run safely with the same run ID:
 .\scripts\run_polyp_full_3x3_w10.ps1 -RunId <existing_run_id>
 ```
 
-Batch outputs are written under:
+For additional unattended patterns (nohup/tmux, stop-on-failure, dry-run planning), see `docs/BATCH_ORCHESTRATION.md`.
+
+Batch outputs:
 
 ```
 results/batches/<run_id>/
@@ -156,15 +154,13 @@ results/batches/<run_id>/
   logs/*.log
 ```
 
-During non-dry-run execution, the batch runner streams each active job's stdout/stderr to the terminal while also persisting full logs under `logs/*.log`.
-
-The orchestrator executes jobs sequentially by default, continues after failures, and returns non-zero if any segment/fairness job fails.
-
-Generated runtime artifacts (`results/`, `outputs/`, `artifacts/`, `results_nanobanana/`, `artifacts_nanobanana/`) are ignored by default in `.gitignore` to keep repository status clean during long benchmark runs.
+- Non-dry-run behavior: mirror child stdout/stderr to terminal and persist per-job logs under `logs/*.log`.
+- Failure behavior: default continue-on-failure; process exits non-zero if any segment/fairness job fails.
+- Generated runtime folders (`results/`, `outputs/`, `artifacts/`, `results_nanobanana/`, `artifacts_nanobanana/`) are ignored in `.gitignore`.
 
 ### Outputs (per run)
 ```
-results/<dataset>/<model>/<run_id>/
+results/<dataset>/<model>/<prompt_key>/<run_id>/
   run_config.json           # exact parameters, prompts, model name, rate limit, workers
   predictions.jsonl         # one JSON record per image; rewritten atomically for resume safety
   masks/*.png               # binary masks per image (union of predicted objects)
@@ -178,13 +174,13 @@ results/<dataset>/<model>/<run_id>/
 - **Resume behavior**: If `predictions.jsonl` exists, the CLI rehydrates prior metrics/masks/overlays before processing remaining images. Writes are atomic per image to avoid corruption on interruption.
 - **Legacy parity**: `--legacy-predictions` writes the notebook-style JSON (including bounding boxes and base64 masks) under `predictions_<model>/` near the dataset, matching the original consumers. Raw payloads are also saved under `raw_responses/` for byte-for-byte reproduction.
 - **Replicate cost/latency**: Replicate provider calls incur the model’s metered costs and add mask-download latency. Use `--replicate-cache-dir <path>` to cache downloaded masks and skip re-fetching them when resuming or rerunning a job.
-- **Replicate model path token**: Replicate model-version strings are normalized into a filesystem-safe model directory token under `results/<dataset>/<model>/...` while the exact model version remains recorded in `run_config.json` (`replicate_model_version`).
+- **Replicate model path token**: Replicate model-version strings are normalized into a filesystem-safe model directory token under `results/<dataset>/<model>/<prompt_key>/...` while the exact model version remains recorded in `run_config.json` (`replicate_model_version`).
 - **Replicate billing gate**: low/zero-credit Replicate accounts can block or heavily throttle smoke/full runs. Treat account funding/credits as an execution prerequisite for Replicate validation.
 
 ### Data flow
-1. **Inputs** stay in place (no path changes): the CLI reads the same `images/`, `masks/`, and manifest text files the notebooks expect.
-2. **Processing**: Each worker owns a Gemini client; a global rate limiter throttles calls. Images are resized to ≤1024 px before inference; model masks are resized to bounding-box extents, then to full resolution for metrics and overlays.
-3. **Checkpointing**: After each image, the CLI rewrites `predictions.jsonl`, updates `metrics.csv`/`summary.csv`, and regenerates legacy prediction JSONs (when requested). Missing artifacts on resume are regenerated from stored masks.
+1. **Inputs unchanged**: read existing `images/`, `masks/`, and manifests in place.
+2. **Processing**: worker-local clients + process-wide rate limiter; resize to ≤1024 px before inference; reproject mask outputs to full resolution.
+3. **Checkpointing**: per-image atomic writes to `predictions.jsonl`, incremental `metrics.csv`/`summary.csv`, and artifact regeneration on resume.
 
 ### Prompt/model configuration
 - Add or edit presets in `configs/prompts.yaml` to swap prompts/models without code changes.
@@ -202,28 +198,18 @@ results/<dataset>/<model>/<run_id>/
 - Override inline with `--prompt` or `--prompt-file`; the chosen text and model parameters are captured in `run_config.json` for reproducibility.
 
 ### IMA++ Preparation And Sensitivity
-- Canonical IMA++ preparation command:
+- Prep command (recommended):
   - `python scripts/prepare_ima_plusplus.py --download-zenodo --download-split-csvs --download-images --download-images-mode api --isic-api-workers 12`
-- Download order is intentional:
-  - Zenodo first (`segs.zip`, `seg_metadata.csv`, `img_metadata.csv`), then ISIC images by `ISIC_id`.
-- Zenodo DOI pinning note:
-  - DOI `10.5281/zenodo.14201692` currently resolves to record `14201693`; prep defaults are pinned to live record file URLs and can be overridden via `--*-url` flags.
-- `download-images-mode api` uses ISIC API v2 directly with retries, backoff, skip-existing, and threaded workers for faster/resumable pulls.
-- `isic auth login` is from older `isic-cli` docs; current CLI releases use `isic image download ...` directly for CLI-based flows.
-- The preparation script writes:
-  - `images/` + `masks/` for normal CLI ingestion,
-  - `masks_all/` plus `metadata/ima_plusplus_index.jsonl|csv` for multi-annotator sensitivity analyses.
-  - copies `metadata/seg_metadata.csv`, `metadata/img_metadata.csv`, and (when available) `metadata/seg_metadata_multiannotator_subset.csv`.
-  - writes split manifests (`train_ima_plusplus.txt`, `val_ima_plusplus.txt`, `test_ima_plusplus.txt`) from split CSVs that provide either `ISIC_id` or `image` columns (case/extension normalized).
-- Canonical GT policy is deterministic:
-  - STAPLE consensus mask if available (`*_ST_ST_ST_ST.png`),
-  - else majority-vote consensus (`*_MV_MV_MV_MV.png`),
-  - else single annotator only when there is exactly one annotator mask.
-- Post-run sensitivity analysis command:
+- Download/order notes:
+  - Zenodo first (`segs.zip`, `seg_metadata.csv`, `img_metadata.csv`), then ISIC image pulls by `ISIC_id`.
+  - DOI `10.5281/zenodo.14201692` currently resolves to record `14201693`; script defaults are pinned to live record URLs and remain overrideable via `--*-url`.
+  - API mode uses ISIC v2 with retries/backoff/skip-existing; older `isic auth login` docs are obsolete for current CLI flows.
+- Outputs/policy:
+  - CLI-ready `images/`, `masks/`; sidecar `masks_all/` + metadata/split manifests for sensitivity analyses.
+  - Canonical GT policy: `STAPLE -> majority vote -> single annotator only (exactly one annotator mask)`.
+- Sensitivity command:
   - `python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <results/.../run_id> --dataset-root data/IMAplusplus_cli`
-- Sensitivity outputs are written under `<run_dir>/ima_plusplus_sensitivity/`:
-  - `metrics_mv.csv`, `metrics_annotators.csv`, `per_image_annotator_summary.csv`,
-  - `summary_overall.csv`, `summary_by_tool.csv`, `summary_by_skill_level.csv`.
+  - Writes `metrics_mv.csv`, `metrics_annotators.csv`, `per_image_annotator_summary.csv`, `summary_overall.csv`, `summary_by_tool.csv`, `summary_by_skill_level.csv` under `<run_dir>/ima_plusplus_sensitivity/`.
 
 #### Prompt families and provider-aware shaping
 - **Ablation families:** All tasks support three prompt families held constant across providers. `label_v1` uses only the class name; `desc_v1` adds modality context + short definition + stable attributes; `desc_neg_v1` equals `desc_v1` plus an exclusions block (the negation block is appended byte-for-byte so the only delta is the exclusions text). Enumerate families by repeating `--prompt-family`.
@@ -245,28 +231,21 @@ results/<dataset>/<model>/<run_id>/
   - adjusted model component contributions with CI-based significance flags (`covadj_component_effects.csv`),
   - continuous ITA trend plots/tables,
   - threshold and dedup sensitivity outputs.
-  - default ITA method is global non-lesional region sampling with ITA computed from aggregated `L*`/`b*` (documented per run in `fairness_enhanced/ita_method_note.json|md`).
-  - interpretation note: trend models are continuous-ITA (`ita_deg`) analyses, while predictive-margin adjusted effects/components are binary-cutoff (`ita_binary`) analyses.
-- Enhanced runtime controls:
-  - `--enhanced-stage core` (fast first pass), `--enhanced-stage sensitivity` (expensive second pass), `--enhanced-stage augment` (targeted feature backfill), or `--enhanced-stage all`.
-  - `--enhanced-feature-profile balanced|full|minimal` controls core feature gating and compute cost.
-  - `--enhanced-augment-columns` requests explicit feature backfill columns for augment runs (for example `phash64_hex,specular_frac`).
-  - resumable extraction checkpoints (`cache/features_part_*.parquet` + `cache/features_manifest.json`) controlled by `--enhanced-resume/--no-enhanced-resume`.
-  - `--enhanced-checkpoint-every` to tune checkpoint cadence.
-  - memory-aware worker auto-capping can be toggled with `--enhanced-workers-auto|--no-enhanced-workers-auto`.
-  - `runtime_profile.json` captures per-stage wall/CPU/RAM peak telemetry and throughput.
-  - `core` stage intentionally defers sensitivity-only outputs (`dedup_sensitivity.csv`, dependence/mask-source sensitivity files) to the `sensitivity` stage.
+  - default ITA method: global non-lesional region sampling with aggregated `L*`/`b*` ITA (documented per run in `fairness_enhanced/ita_method_note.json|md`).
+  - interpretation note: trend models use continuous ITA (`ita_deg`); predictive-margin adjusted effects/components use binary cutoff (`ita_binary`).
+- Runtime controls: stage selection (`all|core|sensitivity|augment`), feature profile (`balanced|full|minimal`), targeted augmentation columns, resumable checkpoints, checkpoint cadence, and optional memory-aware worker auto-capping.
+- Runtime telemetry: `runtime_profile.json` includes per-stage wall/CPU/RAM/throughput; `core` intentionally defers sensitivity-only outputs to `sensitivity`.
 - Enhanced defaults are configured in `configs/fairness_enhanced.yaml`; override with `--enhanced-config`.
-- Implementation-aligned enhanced methods and manuscript-ready wording live in:
-  - `docs/FAIRNESS_ENHANCED_METHODS.md`
+- Deep references:
+  - `docs/FAIRNESS_ENHANCED_METHODS.md` (implementation-aligned methods)
   - `docs/FAIRNESS_ENHANCED.md` (operational quick reference)
 
 ### Paper artifacts
-- **Tables/Figure placeholders:** `python -m gemini_segmentation.paper.make_all --results <path/to/long_form_results.csv>` (Parquet is also supported). The YAML registry in `configs/paper.yaml` documents required columns (task/model/prompt_strategy/iou/dice/success), display labels, and specifications for each table/figure. Artifacts land in `artifacts/` by default with `tables/*.csv|html|docx` and `figures/*.png|pdf`; override with `--artifacts` for CI.
-- **Figure 1 best cases:** `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml` selects the highest-IoU image per configured dataset/target (persisting selection to `artifacts/figures/figure1_best_cases/selection.yaml`) and renders the montage to PDF/PNG in the same directory.
-- **Fairness Figure 2 + Table 4:** `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>` consumes the ITA fairness CSVs from a completed run and emits the combined four-panel plot (`figure2.png|pdf|svg`), each standalone panel (`figure2_panel_[a-d]_*.png|pdf|svg`), plus Table 4 to `artifacts/fairness/` (paths are configurable via `--output-dir`). `--fairness-dir` must be the concrete fairness artifact folder containing `fairness_results.csv`, `fairness_summary.csv`, and optionally `fairness_stats.csv`.
-- **Enhanced fairness manuscript artifacts (Figures E/Tables E + narrative report):** `python -m gemini_segmentation.paper.figures_enhanced --fairness-enhanced-dir <results/.../fairness_enhanced>` consumes enhanced fairness outputs and writes publication-style figure/table artifacts under `artifacts/fairness_enhanced/` including individual figures (`png|svg|pdf`), tables (`csv|html|md`), and one combined report (`enhanced_fairness_report.md|html|pdf|docx`). When covariate-adjusted fairness artifacts (`covadj_success_t050_effects.*`) are present, they are automatically included in the report; if absent, report generation continues without failure. Optional flags: `--include-supplement|--no-include-supplement`, `--report-title`, `--report-stem`, `--seed`.
-- **Prompt-family comparison report (Markdown/HTML/PDF):** `python -m gemini_segmentation.paper.prompt_comparison --dataset polyp` reads completed run summaries and emits grouped model sections plus a consolidated PDF mega table with publication-style model/prompt labels. Rows include mean IoU/Dice (95% CI), median IoU/Dice, and success rate in `.md`, `.html`, `.pdf`, and `.csv` under `results/reports/`. Override run selection with `--gemini-run-id` / `--moondream-run-id` / `--replicate-run-id` when needed.
+- **Tables/Figure placeholders:** `python -m gemini_segmentation.paper.make_all --results <csv_or_parquet>`; registry in `configs/paper.yaml`; outputs to `artifacts/tables/*.csv|html|docx` and `artifacts/figures/*.png|pdf` (override `--artifacts`).
+- **Figure 1 best cases:** `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml`; writes montage PDF/PNG and `selection.yaml` under `artifacts/figures/figure1_best_cases/`.
+- **Fairness Figure 2 + Table 4:** `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>`; writes combined + panel figure exports (`png|pdf|svg`) and Table 4 under `artifacts/fairness/` (override `--output-dir`).
+- **Enhanced fairness artifacts/report:** `python -m gemini_segmentation.paper.figures_enhanced --fairness-enhanced-dir <results/.../fairness_enhanced>`; writes figures (`png|svg|pdf`), tables (`csv|html|md`), and combined report (`md|html|pdf|docx`) under `artifacts/fairness_enhanced/`.
+- **Prompt-family comparison report:** `python -m gemini_segmentation.paper.prompt_comparison --dataset <name>`; writes `.md|.html|.pdf|.csv` under `results/reports/`; supports `--gemini-run-id`, `--moondream-run-id`, `--replicate-run-id`.
 
 ## Extending the project
 - **New datasets**: Add discovery helpers or manifest builders in `src/gemini_segmentation/data.py` if layout differs; keep `images/`/`masks/` naming stable to reuse the CLI.
@@ -288,9 +267,9 @@ results/<dataset>/<model>/<run_id>/
 - **Prompts**: `configs/prompts.yaml` (presets) or CLI flags for overrides.
 
 ## Notes on legacy vs. CLI
-- **Inputs are unchanged**: keep all datasets where the notebooks expect them; the CLI reads the same locations.
-- **Outputs are unified**: prefer the `results/` tree for new runs; enable `--legacy-predictions` only if older notebook consumers need the original JSON drops.
-- **Tmux/parallelism**: you can still orchestrate multiple CLI runs with tmux; within a run, use `--workers` for thread-level parallelism guarded by the global rate limiter.
+- **Inputs unchanged**: CLI reads the same dataset roots/notebook manifests.
+- **Outputs unified**: prefer `results/`; use `--legacy-predictions` only for notebook-era consumers.
+- **Parallelism**: orchestrate multi-run concurrency externally (for example `tmux`); use per-run `--workers` with rate limiting.
 
 ## NanoBanana package (isolated study lane)
 This repo also includes an isolated NanoBanana package under `src/nanobanana_segmentation/`.

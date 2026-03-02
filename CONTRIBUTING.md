@@ -16,6 +16,7 @@
 - Runtime package: `src/gemini_segmentation/`.
 - Prompt and paper configuration: `configs/`.
 - Benchmark matrix configs: `configs/benchmarks/`.
+- Documentation ownership map: `docs/DOCUMENTATION_MAP.md`.
 - Batch launcher script: `scripts/launch_batch.sh`.
 - Regression tests: `tests/`.
 - Legacy experiment notebooks: `notebooks/*.ipynb` (plus `ita_fitzpatrick_analysis.ipynb` currently at repo root).

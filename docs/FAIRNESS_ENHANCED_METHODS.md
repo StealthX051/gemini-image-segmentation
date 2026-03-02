@@ -5,7 +5,7 @@ This document is the implementation-aligned methods specification for the enhanc
 Version anchor:
 - Code path: `src/gemini_segmentation/fairness_enhanced/`
 - Effective defaults: `configs/fairness_enhanced.yaml`
-- Current method family: `posthoc_v15` (see `docs/METHODS_CHANGELOG.md`)
+- Current method family: follow `docs/METHODS_CHANGELOG.md` "Current Effective Version".
 
 This file is intended to be both:
 - engineering-reference exactness (what the code does), and

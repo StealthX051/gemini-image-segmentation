@@ -8,6 +8,7 @@ Repository-level instructions for coding agents working in this project.
 
 ## First Steps
 - Read `README.md` for the project workflow and CLI usage.
+- Read `docs/DOCUMENTATION_MAP.md` to understand which docs are canonical per topic.
 - Read `docs/AGENT_HANDOFF.md` for current operational caveats and recent changes.
 - Read `docs/ARCHITECTURE.md` before changing runtime logic.
 - Read `docs/MANUSCRIPT_ALIGNMENT.md` before changing providers, prompts, or manuscript-facing outputs.
