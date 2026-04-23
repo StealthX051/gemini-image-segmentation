@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import yaml
 
+from .gemini_capabilities import gemini_supports_agentic_vision, gemini_supports_explicit_cache
 from .prompts import PromptFamily
 
 
@@ -44,6 +45,8 @@ class BatchJob:
     success_threshold: float
     bootstrap_method: str
     bootstrap_resamples: int
+    api_model_name: Optional[str] = None
+    gemini_agentic_vision: bool = False
     replicate_model_version: Optional[str] = None
     replicate_targets: Optional[tuple[str, ...]] = None
     replicate_instructions: Optional[tuple[str, ...]] = None
@@ -52,6 +55,10 @@ class BatchJob:
     @property
     def job_id(self) -> str:
         return f"{self.dataset_name}__{self.model_name}"
+
+    @property
+    def api_call_model_name(self) -> str:
+        return self.api_model_name or self.model_name
 
     @property
     def output_model_name(self) -> str:
@@ -214,6 +221,12 @@ def build_jobs(
                 raise ValueError("Each model entry must include non-empty 'name'.")
             if model_filter and model_name not in model_filter:
                 continue
+            api_model_name_value = model.get("api_model_name")
+            api_model_name = (
+                str(_expand_env_placeholders(api_model_name_value)).strip()
+                if api_model_name_value is not None
+                else None
+            ) or None
 
             provider = str(
                 model.get("provider", dataset.get("provider", defaults.get("provider", "gemini")))
@@ -250,8 +263,15 @@ def build_jobs(
                     dataset.get("gemini_explicit_cache", defaults.get("gemini_explicit_cache", True)),
                 )
             )
-            if provider == "gemini" and "robotics-er" in model_name:
+            gemini_model_for_capabilities = api_model_name or model_name
+            if provider == "gemini" and not gemini_supports_explicit_cache(gemini_model_for_capabilities):
                 gemini_explicit_cache = False
+            gemini_agentic_vision = bool(
+                model.get(
+                    "gemini_agentic_vision",
+                    dataset.get("gemini_agentic_vision", defaults.get("gemini_agentic_vision", False)),
+                )
+            )
 
             replicate_model_version = None
             replicate_cache_dir = None
@@ -294,6 +314,7 @@ def build_jobs(
                 dataset_name=dataset_name,
                 dataset_root=dataset_root,
                 model_name=model_name,
+                api_model_name=api_model_name,
                 provider=provider,
                 prompt_families=prompt_families,
                 manifest=_expand_env_placeholders(
@@ -309,6 +330,7 @@ def build_jobs(
                 local_cache=local_cache_enabled,
                 local_cache_dir=local_cache_dir,
                 gemini_explicit_cache=gemini_explicit_cache,
+                gemini_agentic_vision=gemini_agentic_vision,
                 gemini_cache_ttl=int(
                     model.get(
                         "gemini_cache_ttl",
@@ -391,9 +413,15 @@ def preflight_jobs(jobs: Iterable[BatchJob], *, skip_env_checks: bool = False) -
             raise ValueError(f"max_retries must be >= 0 for job {job.job_id}")
         if job.workers < 1:
             raise ValueError(f"workers must be >= 1 for job {job.job_id}")
-        if job.provider == "gemini" and "robotics-er" in job.model_name and job.gemini_explicit_cache:
+        if job.provider == "gemini" and not gemini_supports_explicit_cache(job.api_call_model_name) and job.gemini_explicit_cache:
             raise ValueError(
-                f"Robotics ER job {job.job_id} must disable explicit Gemini cache."
+                f"Gemini job {job.job_id} uses a model that must disable explicit Gemini cache."
+            )
+        if job.gemini_agentic_vision and not (
+            job.provider == "gemini" and gemini_supports_agentic_vision(job.api_call_model_name)
+        ):
+            raise ValueError(
+                f"Gemini agentic vision is only supported for Gemini Robotics-ER 1.6 jobs ({job.job_id})."
             )
         if job.provider == "replicate":
             if not job.replicate_model_version:
@@ -425,8 +453,10 @@ def build_segment_command(job: BatchJob, *, run_id: str, results_dir: Path) -> L
         "--provider",
         job.provider,
         "--model-name",
-        job.model_name,
+        job.api_call_model_name,
     ]
+    if job.api_model_name:
+        cmd.extend(["--output-model-name", job.model_name])
     if job.manifest:
         cmd.extend(["--manifest", str(job.manifest)])
     for family in job.prompt_families:
@@ -434,6 +464,10 @@ def build_segment_command(job: BatchJob, *, run_id: str, results_dir: Path) -> L
     if job.provider == "gemini":
         cmd.extend(["--thinking-budget", str(job.thinking_budget)])
         cmd.extend(["--temperature", str(job.temperature)])
+        if job.gemini_agentic_vision:
+            cmd.append("--gemini-agentic-vision")
+        else:
+            cmd.append("--no-gemini-agentic-vision")
     cmd.extend(["--timeout", str(job.timeout)])
     cmd.extend(["--max-retries", str(job.max_retries)])
     cmd.extend(["--workers", str(job.workers)])

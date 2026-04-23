@@ -103,7 +103,7 @@ def test_build_jobs_allows_unresolved_env_for_filtered_datasets(tmp_path, monkey
     assert jobs[0].dataset_root == root_a
 
 
-def test_build_jobs_applies_filters_and_robotics_cache_policy(tmp_path) -> None:
+def test_build_jobs_applies_filters_and_agentic_robotics_labeling(tmp_path) -> None:
     config = {
         "schema_version": 1,
         "study_id": "study",
@@ -119,23 +119,31 @@ def test_build_jobs_applies_filters_and_robotics_cache_policy(tmp_path) -> None:
         ],
         "models": [
             {"name": "gemini-2.5-flash"},
-            {"name": "gemini-robotics-er-1.5-preview"},
+            {
+                "name": "gemini-robotics-er-1.6-preview-agentic",
+                "api_model_name": "gemini-robotics-er-1.6-preview",
+                "gemini_agentic_vision": True,
+            },
         ],
     }
 
     jobs = batch.build_jobs(
         config,
         only_datasets=["polyp"],
-        only_models=["gemini-robotics-er-1.5-preview"],
+        only_models=["gemini-robotics-er-1.6-preview-agentic"],
     )
     assert len(jobs) == 1
     assert jobs[0].dataset_name == "polyp"
-    assert jobs[0].model_name == "gemini-robotics-er-1.5-preview"
-    assert jobs[0].gemini_explicit_cache is False
+    assert jobs[0].model_name == "gemini-robotics-er-1.6-preview-agentic"
+    assert jobs[0].api_call_model_name == "gemini-robotics-er-1.6-preview"
+    assert jobs[0].gemini_explicit_cache is True
+    assert jobs[0].gemini_agentic_vision is True
 
     cmd = batch.build_segment_command(jobs[0], run_id="run-id", results_dir=tmp_path / "results")
-    assert "--no-gemini-explicit-cache" in cmd
-    assert "--gemini-explicit-cache" not in cmd
+    assert "--model-name" in cmd and "gemini-robotics-er-1.6-preview" in cmd
+    assert "--output-model-name" in cmd and "gemini-robotics-er-1.6-preview-agentic" in cmd
+    assert "--gemini-agentic-vision" in cmd
+    assert "--gemini-explicit-cache" in cmd
     assert cmd.count("--prompt-family") == 3
 
 
@@ -169,8 +177,43 @@ def test_build_segment_command_includes_required_flags(tmp_path) -> None:
     assert "--local-cache" in cmd
     assert "--local-cache-dir" in cmd
     assert "--gemini-explicit-cache" in cmd
+    assert "--no-gemini-agentic-vision" in cmd
     assert "--run-id" in cmd and "batch-run" in cmd
     assert cmd.count("--prompt-family") == 3
+
+
+def test_preflight_allows_robotics_er_1_6_explicit_cache_and_agentic_vision(tmp_path, monkeypatch) -> None:
+    dataset_root = tmp_path / "dataset"
+    _make_dataset_root(dataset_root)
+    monkeypatch.setenv("GOOGLE_API_KEY", "dummy-key")
+
+    job = batch.BatchJob(
+        dataset_name="polyp",
+        dataset_root=dataset_root,
+        model_name="gemini-robotics-er-1.6-preview-agentic",
+        api_model_name="gemini-robotics-er-1.6-preview",
+        provider="gemini",
+        prompt_families=("label_v1",),
+        manifest=None,
+        timeout=60.0,
+        max_retries=5,
+        workers=1,
+        sample_size=None,
+        rate_limit=None,
+        local_cache=True,
+        local_cache_dir=Path("results/.request_cache"),
+        gemini_explicit_cache=True,
+        gemini_agentic_vision=True,
+        gemini_cache_ttl=3600,
+        thinking_budget=0,
+        temperature=0.5,
+        legacy_predictions=False,
+        success_threshold=0.5,
+        bootstrap_method="bca",
+        bootstrap_resamples=5000,
+    )
+
+    batch.preflight_jobs([job], skip_env_checks=False)
 
 
 def test_build_segment_command_for_moondream_omits_gemini_sampling_flags(tmp_path) -> None:

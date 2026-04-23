@@ -28,6 +28,7 @@ def build_request_cache_key(
     prompt_family: str | None,
     temperature: float | None,
     thinking_budget: int | None,
+    gemini_agentic_vision: bool = False,
     targets: tuple[str, ...] | None = None,
 ) -> str:
     payload = {
@@ -37,6 +38,7 @@ def build_request_cache_key(
         "prompt_family": prompt_family,
         "temperature": temperature,
         "thinking_budget": thinking_budget,
+        "gemini_agentic_vision": gemini_agentic_vision,
         "targets": list(targets) if targets else None,
         "image_sha256": hash_file(image_path),
     }

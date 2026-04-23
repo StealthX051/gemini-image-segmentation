@@ -39,6 +39,7 @@ from gemini_segmentation.cli import (
     _process_image_with_cache,
     _prompt_hash,
     _resolve_provider_prompt,
+    _validate_gemini_agentic_vision,
     build_parser,
     command_fairness,
     command_segment,
@@ -74,6 +75,9 @@ class CacheFlagParserTests(TestCase):
         self.assertTrue(args.local_cache)
         self.assertIsNone(args.local_cache_dir)
         self.assertTrue(args.gemini_explicit_cache)
+        self.assertFalse(args.gemini_agentic_vision)
+        self.assertIsNone(args.output_model_name)
+        self.assertEqual(args.thinking_budget, 0)
         self.assertEqual(args.gemini_cache_ttl, 3600)
         self.assertEqual(args.max_retries, 5)
 
@@ -90,6 +94,9 @@ class CacheFlagParserTests(TestCase):
                 "--no-gemini-explicit-cache",
                 "--gemini-cache-ttl",
                 "7200",
+                "--gemini-agentic-vision",
+                "--output-model-name",
+                "gemini-robotics-er-1.6-preview-agentic",
                 "--max-retries",
                 "7",
             ]
@@ -97,8 +104,28 @@ class CacheFlagParserTests(TestCase):
         self.assertFalse(args.local_cache)
         self.assertEqual(args.local_cache_dir, "/tmp/request_cache")
         self.assertFalse(args.gemini_explicit_cache)
+        self.assertTrue(args.gemini_agentic_vision)
+        self.assertEqual(args.output_model_name, "gemini-robotics-er-1.6-preview-agentic")
         self.assertEqual(args.gemini_cache_ttl, 7200)
         self.assertEqual(args.max_retries, 7)
+
+
+class GeminiAgenticVisionValidationTests(TestCase):
+    def test_rejects_non_gemini_provider(self) -> None:
+        with self.assertRaises(ValueError):
+            _validate_gemini_agentic_vision(
+                provider="moondream",
+                model_name="gemini-robotics-er-1.6-preview",
+                gemini_agentic_vision=True,
+            )
+
+    def test_rejects_non_robotics_er_1_6_model(self) -> None:
+        with self.assertRaises(ValueError):
+            _validate_gemini_agentic_vision(
+                provider="gemini",
+                model_name="gemini-2.5-flash",
+                gemini_agentic_vision=True,
+            )
 
 
 class CommandSegmentBranchTests(TestCase):
@@ -288,6 +315,22 @@ class PromptFamilyTests(TestCase):
         mock_build_prompt_for_provider.assert_any_call(
             "polyp", "desc_neg_v1", "gemini", targets_override=None
         )
+
+
+class ProviderPromptResolutionTests(TestCase):
+    def test_resolve_provider_prompt_keeps_gemini_png_data_uri_contract(self) -> None:
+        prompt = _resolve_provider_prompt(
+            provider="gemini",
+            prompt_family="label_v1",
+            explicit_prompt=None,
+            prompt_task="polyp",
+            target_overrides=None,
+            replicate_instruction_overrides=None,
+        )
+        self.assertNotIn("Supplementary Methods:", prompt.prompt)
+        self.assertIn("Output a JSON list of segmentation masks", prompt.prompt)
+        self.assertIn("data:image/png;base64,", prompt.prompt)
+        self.assertIn("Do not return SVG path data", prompt.prompt)
 
 
 class MultiPromptFamilyTests(TestCase):
@@ -729,6 +772,110 @@ class ProviderPromptResolutionTests(TestCase):
         self.assertEqual(resolved.instructions["new target"], "Segment the new target.")
 
 
+class GeminiAgenticVisionCommandTests(TestCase):
+    @mock.patch(
+        "gemini_segmentation.cli.build_prompt_for_provider",
+        return_value=ProviderPrompt(prompt="rendered prompt"),
+    )
+    @mock.patch("gemini_segmentation.cli.dump_run_config")
+    @mock.patch("gemini_segmentation.cli.build_run_config")
+    @mock.patch("gemini_segmentation.cli.load_metrics", return_value={})
+    @mock.patch("gemini_segmentation.cli.load_existing_predictions", return_value={})
+    @mock.patch("gemini_segmentation.cli.paired_masks", return_value=[])
+    @mock.patch("gemini_segmentation.cli.sample_images", return_value=[])
+    @mock.patch("gemini_segmentation.cli.read_manifest", return_value=[])
+    @mock.patch("gemini_segmentation.cli._prepare_output_dirs")
+    @mock.patch("gemini_segmentation.cli.discover_dataset")
+    def test_build_run_config_includes_agentic_vision_and_output_model_name(
+        self,
+        mock_discover,
+        mock_prepare_dirs,
+        _mock_read_manifest,
+        _mock_sample_images,
+        _mock_paired_masks,
+        _mock_load_existing_predictions,
+        _mock_load_metrics,
+        mock_build_run_config,
+        _mock_dump_run_config,
+        _mock_build_prompt_for_provider,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dataset_root = Path(tmp_dir)
+            manifest_path = dataset_root / "manifest.txt"
+            masks_dir = dataset_root / "masks"
+            mock_discover.return_value = SimpleNamespace(
+                manifest_path=manifest_path, masks_dir=masks_dir
+            )
+            run_dir = (
+                Path(tmp_dir)
+                / "results"
+                / "polyp"
+                / "gemini-robotics-er-1.6-preview-agentic"
+                / "label_v1-1234abcd"
+                / "run"
+            )
+            mock_prepare_dirs.return_value = {
+                "run_dir": run_dir,
+                "predictions_jsonl": Path(tmp_dir) / "predictions.jsonl",
+                "masks": Path(tmp_dir) / "masks_out",
+                "overlays": Path(tmp_dir) / "overlays",
+                "metrics": Path(tmp_dir) / "metrics.csv",
+                "summary": Path(tmp_dir) / "summary.csv",
+                "fairness": Path(tmp_dir) / "fairness",
+                "run_config": Path(tmp_dir) / "run_config.json",
+                "raw_responses": Path(tmp_dir) / "raw_responses",
+            }
+
+            args = argparse.Namespace(
+                command="segment",
+                dataset_name="polyp",
+                dataset_root=str(dataset_root),
+                manifest=None,
+                provider="gemini",
+                model_name="gemini-robotics-er-1.6-preview",
+                output_model_name="gemini-robotics-er-1.6-preview-agentic",
+                prompt="",
+                prompt_file=None,
+                prompt_preset=None,
+                preset_name="default",
+                preset_branch=None,
+                moondream_targets=None,
+                moondream_endpoint=None,
+                moondream_api_key=None,
+                thinking_budget=0,
+                temperature=0.5,
+                gemini_agentic_vision=True,
+                timeout=1.0,
+                max_retries=5,
+                workers=1,
+                sample_size=None,
+                results_dir=tmp_dir,
+                run_id="run",
+                rate_limit=None,
+                legacy_predictions=False,
+                success_threshold=0.5,
+                bootstrap_method="bca",
+                bootstrap_resamples=5000,
+                dry_run=True,
+                replicate_model_version=None,
+                replicate_targets=None,
+                replicate_instructions=None,
+                replicate_cache_dir=None,
+                prompt_family="label_v1",
+                local_cache=True,
+                local_cache_dir=None,
+                gemini_explicit_cache=True,
+                gemini_cache_ttl=3600,
+            )
+
+            command_segment(args)
+
+        kwargs = mock_build_run_config.call_args.kwargs
+        self.assertEqual(kwargs["model_name"], "gemini-robotics-er-1.6-preview")
+        self.assertEqual(kwargs["output_model_name"], "gemini-robotics-er-1.6-preview-agentic")
+        self.assertTrue(kwargs["gemini_agentic_vision"])
+
+
 class LocalRequestCacheBehaviorTests(TestCase):
     def test_retries_parse_failure_before_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -880,6 +1027,39 @@ class LocalRequestCacheBehaviorTests(TestCase):
             self.assertFalse(timed_out)
             self.assertEqual(len(masks), 1)
             self.assertEqual(masks[0].label, "lesion")
+
+    def test_cache_key_varies_with_gemini_agentic_vision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            img_path = Path(tmp_dir) / "img.png"
+            from PIL import Image
+            import numpy as np
+
+            Image.fromarray(np.zeros((8, 8), dtype=np.uint8)).save(img_path)
+
+            key_without_agentic = build_request_cache_key(
+                image_path=img_path,
+                provider="gemini",
+                model_name="gemini-robotics-er-1.6-preview",
+                prompt_hash="prompt-digest",
+                prompt_family="label_v1",
+                temperature=0.5,
+                thinking_budget=0,
+                gemini_agentic_vision=False,
+                targets=None,
+            )
+            key_with_agentic = build_request_cache_key(
+                image_path=img_path,
+                provider="gemini",
+                model_name="gemini-robotics-er-1.6-preview",
+                prompt_hash="prompt-digest",
+                prompt_family="label_v1",
+                temperature=0.5,
+                thinking_budget=0,
+                gemini_agentic_vision=True,
+                targets=None,
+            )
+
+            self.assertNotEqual(key_without_agentic, key_with_agentic)
 
 
 class ReplicateValidationTests(TestCase):

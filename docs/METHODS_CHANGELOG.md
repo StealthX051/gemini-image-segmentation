@@ -3,8 +3,8 @@
 This changelog tracks method-level changes that affect manuscript interpretation, reproducibility, or experimental comparability.
 
 ## Current Effective Version
-- `posthoc_v19`
-- Effective bundle coverage: baseline + `MTH-POSTHOC-001` through `MTH-POSTHOC-031` below.
+- `posthoc_v24`
+- Effective bundle coverage: baseline + `MTH-POSTHOC-001` through `MTH-POSTHOC-036` below.
 - Use entry IDs (not this header text) as the canonical audit trail for exact method deltas.
 
 ## Entries
@@ -233,6 +233,41 @@ This changelog tracks method-level changes that affect manuscript interpretation
 - Summary: hardened NanoBanana study evaluation against multi-channel ground-truth masks by normalizing GT/pred arrays to single-channel before metric computation and returning zeroed metrics (with warning) on irreconcilable shape mismatch instead of crashing the run.
 - Impact: prevents stage-run failures on datasets with RGB/JPEG mask files (for example polyp `masks/*.jpg`), enabling stable smoke diagnostics while preserving explicit mismatch handling.
 - Code anchors: `src/nanobanana_segmentation/study/eval.py`, `tests/nanobanana/test_eval.py`.
+
+### MTH-POSTHOC-032
+- Date: 2026-04-22.
+- Status: active.
+- Summary: replaced the active Robotics ER benchmark path from `gemini-robotics-er-1.5-preview` to `gemini-robotics-er-1.6-preview`, enabled explicit-cache support for Robotics-ER 1.6, and added a repo-scoped Robotics-only agentic-vision ablation implemented through Gemini code execution with separate output/report labels (`output_model_name` / batch `api_model_name`).
+- Impact: updates the canonical robotics benchmark family to `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-robotics-er-1.6-preview`, and `gemini-robotics-er-1.6-preview-agentic`, while keeping prompt-family semantics unchanged and preserving cache isolation between plain and tool-enabled Robotics-ER 1.6 runs.
+- Code anchors: `src/gemini_segmentation/models.py`, `src/gemini_segmentation/cli.py`, `src/gemini_segmentation/cache.py`, `src/gemini_segmentation/batch.py`, `src/gemini_segmentation/paper/prompt_comparison.py`, `configs/benchmarks/ablation_robotics_canonical.yaml`, `tests/test_cli.py`, `tests/test_batch.py`, `tests/test_gemini_segmenter.py`, `tests/test_io.py`, `docs/MANUSCRIPT_ALIGNMENT.md`, `docs/BATCH_ORCHESTRATION.md`, `docs/GEMINI_CACHING.md`.
+
+### MTH-POSTHOC-033
+- Date: 2026-04-22.
+- Status: active.
+- Summary: hardened prompt-comparison reporting so Gemini comparison reports keep the active Robotics-ER 1.6 defaults while auto-discovering additional Gemini model directories, including historical `gemini-robotics-er-1.5-preview` runs, for the selected Gemini run ID.
+- Impact: preserves backward-compatible comparative reporting across pre-1.6 and post-1.6 benchmark rounds without reintroducing Robotics-ER 1.5 as an active benchmark default.
+- Code anchors: `src/gemini_segmentation/paper/prompt_comparison.py`, `tests/test_paper_prompt_comparison.py`, `README.md`, `docs/MANUSCRIPT_ALIGNMENT.md`, `docs/AGENT_HANDOFF.md`.
+
+### MTH-POSTHOC-034
+- Date: 2026-04-22.
+- Status: active.
+- Summary: removed the prompt-comparison report generator's hard requirement for a Moondream run so Gemini-only comparisons, including Robotics-ER 1.6 plain vs agentic smoke runs, can render directly from Gemini results alone.
+- Impact: makes the reporting pipeline usable for focused Robotics-only ablations while preserving optional Moondream and Replicate inclusion when those providers are available.
+- Code anchors: `src/gemini_segmentation/paper/prompt_comparison.py`, `tests/test_paper_prompt_comparison.py`, `README.md`, `docs/MANUSCRIPT_ALIGNMENT.md`, `docs/AGENT_HANDOFF.md`.
+
+### MTH-POSTHOC-035
+- Date: 2026-04-23.
+- Status: active.
+- Summary: tightened the shared Gemini prompt contract so the `mask` field is explicitly required to be a PNG data URI beginning with `data:image/png;base64,`, and explicitly disallowed SVG path data, polygon coordinate lists, and other vector encodings.
+- Impact: aligns active Gemini prompts with the legacy notebook/parser expectation used by Gemini 2.5 and historical Robotics-ER runs, reducing format ambiguity for Robotics-ER 1.6 without changing prompt-family semantics beyond output-format specificity.
+- Code anchors: `src/gemini_segmentation/prompts.py`, `configs/prompts.yaml`, `tests/test_prompts.py`, `tests/test_cli.py`, `README.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
+
+### MTH-POSTHOC-036
+- Date: 2026-04-23.
+- Status: active.
+- Summary: realigned provider prompting to provider-native guidance by replacing the runtime Gemini manuscript-style preamble with a short Google-style segmentation skeleton, switching Replicate/Sa2VA defaults to short `Please segment ...` instructions, and enabling Gemini structured-output JSON mode only for the Gemini 2.5 models that Google explicitly documents as supporting it.
+- Impact: brings active prompting closer to official provider recommendations while preserving the existing `label_v1` / `desc_v1` / `desc_neg_v1` family semantics, keeps Robotics-ER 1.6 prompt-aligned but schema-disabled by default, and preserves Moondream’s native target-only segmentation flow plus SVG-path rasterization.
+- Code anchors: `src/gemini_segmentation/prompts.py`, `src/gemini_segmentation/models.py`, `src/gemini_segmentation/gemini_capabilities.py`, `src/gemini_segmentation/io.py`, `tests/test_prompts.py`, `tests/test_gemini_segmenter.py`, `tests/test_cli.py`, `tests/test_io.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/MANUSCRIPT_ALIGNMENT.md`.
 
 ## Update Protocol For New Method Changes
 - Add a new `MTH-*` entry in this file describing what changed and why it matters.

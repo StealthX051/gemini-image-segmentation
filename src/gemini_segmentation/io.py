@@ -28,8 +28,8 @@ def parse_json(predicted_str: str) -> str:
     return predicted_str.strip()
 
 
-def _extract_response_text(response: object) -> Tuple[str, bool]:
-    """Pull JSON-ish text from structured response candidates when available."""
+def _extract_response_texts(response: object) -> List[str]:
+    """Pull text parts from structured Gemini responses in order."""
 
     texts: List[str] = []
     candidates = getattr(response, "candidates", None)
@@ -41,10 +41,12 @@ def _extract_response_text(response: object) -> Tuple[str, bool]:
                 if text:
                     texts.append(text)
     if texts:
-        return "\n".join(texts), True
+        return texts
 
     fallback_text = getattr(response, "text", "")
-    return fallback_text, bool(fallback_text)
+    if fallback_text:
+        return [fallback_text]
+    return []
 
 
 def _wrap_base64_mask(mask_str: str) -> List[dict]:
@@ -57,6 +59,20 @@ def _wrap_base64_mask(mask_str: str) -> List[dict]:
             "mask": mask_str if mask_str.startswith("data:image") else f"data:image/png;base64,{mask_str}",
         }
     ]
+
+
+def _looks_like_base64_mask_payload(candidate: str) -> bool:
+    stripped = candidate.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("data:image"):
+        return True
+    if len(stripped) < 32 or any(ch.isspace() for ch in stripped):
+        return False
+    base64_chars = set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+    )
+    return all(ch in base64_chars for ch in stripped)
 
 
 def segmentation_masks_from_items(
@@ -105,24 +121,35 @@ def parse_segmentation_masks(
 ) -> Tuple[List[SegmentationMask], bool, List[dict]]:
     """Parse model output into full-image masks with bounding boxes and raw entries."""
 
-    raw_text, has_text = _extract_response_text(response)
-    cleaned_json = parse_json(raw_text) if has_text else ""
-    raw_items: List[dict] | str = []
-    parse_success = True
-    if cleaned_json:
-        try:
-            raw_items = json.loads(cleaned_json)
-        except json.JSONDecodeError:
-            logging.exception("Failed to decode JSON response; attempting base64 fallback")
-            parse_success = False
-            if cleaned_json.startswith("data:image") or cleaned_json.strip():
-                raw_items = _wrap_base64_mask(cleaned_json)
-    elif has_text and raw_text.strip():
-        parse_success = False
-        raw_items = _wrap_base64_mask(raw_text)
-    else:
+    text_candidates = _extract_response_texts(response)
+    if not text_candidates:
         logging.warning("Empty segmentation response")
         return [], False, []
+
+    raw_items: List[dict] | str = []
+    parse_success = False
+    last_parse_error: json.JSONDecodeError | None = None
+
+    for raw_text in reversed(text_candidates):
+        cleaned_json = parse_json(raw_text)
+        if not cleaned_json:
+            continue
+        try:
+            raw_items = json.loads(cleaned_json)
+            parse_success = True
+            break
+        except json.JSONDecodeError as exc:
+            last_parse_error = exc
+            if _looks_like_base64_mask_payload(cleaned_json):
+                raw_items = _wrap_base64_mask(cleaned_json)
+                parse_success = True
+                break
+
+    if not parse_success and last_parse_error:
+        logging.warning(
+            "Failed to decode JSON response; attempting fallback handling: %s",
+            last_parse_error,
+        )
 
     # Normalize single-object dicts
     if isinstance(raw_items, dict):

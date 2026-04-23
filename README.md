@@ -53,7 +53,7 @@ This repository contains two primary segmentation workflows plus one isolated st
 Notebook pairs share one pattern and remain runnable in-place:
 1. **Bootstrap**: load helpers/env vars, validate dataset roots (`images/`, `masks/`), optionally install missing packages.
 2. **Discovery/manifests**: build `master_imagelist_<dataset>.txt` and optional pilot lists (`pilot50_*.txt`) in place.
-3. **Segmentation primitives**: parse Gemini (`box_2d`, base64 mask) into full-resolution masks and render QA overlays.
+3. **Segmentation primitives**: parse Gemini (`box_2d`, `mask`, `label`) into full-resolution masks and render QA overlays. The intended Gemini contract is a base64 encoded PNG mask returned as a PNG data URI beginning with `data:image/png;base64,`.
 4. **Inference**: call `gemini-2.5-*` on ≤1024px resized images with configurable prompt/temperature/thinking/safety; typically serial with optional ad-hoc threading.
 5. **Evaluation**: iterate manifests with optional sampling/rate-limit sleeps; optionally emit `predictions_<model>/` JSON under dataset roots.
 6. **Metrics/fairness inputs**: compute IoU/Dice + bootstrap summaries + parse/timeout flags from predicted and GT masks.
@@ -113,14 +113,16 @@ conda run -n gemini_seg python -c "import docx; print(docx.__file__)"
 - `segment`: Run Gemini, Moondream, or Replicate on a dataset without changing source files.
   - Required: `segment <dataset_name> <dataset_root>` (must contain `images/` and `masks/`, plus any existing manifest files).
   - Prompt selection: `--prompt`, `--prompt-file`, or `--prompt-preset configs/prompts.yaml --preset-name <name> [--preset-branch legacy]`.
-  - Execution controls: `--model-name`, `--provider`, `--temperature`, `--thinking-budget`, `--timeout`, `--max-retries` (default `5`), `--workers`, `--rate-limit`, `--sample-size`, `--results-dir`, `--run-id`, `--dry-run`.
+  - Execution controls: `--model-name`, `--output-model-name`, `--provider`, `--temperature`, `--thinking-budget`, `--gemini-agentic-vision`, `--timeout`, `--max-retries` (default `5`), `--workers`, `--rate-limit`, `--sample-size`, `--results-dir`, `--run-id`, `--dry-run`.
   - Metrics controls: `--success-threshold`, `--bootstrap-method` (`bca|percentile`), `--bootstrap-resamples` (default `5000`).
   - Cache controls: `--local-cache/--no-local-cache`, `--local-cache-dir`; Gemini explicit cache: `--gemini-explicit-cache/--no-gemini-explicit-cache`, `--gemini-cache-ttl`.
   - Back-compat/output controls: `--manifest`, `--legacy-predictions`, `--replicate-cache-dir`.
   - Provider-specific target/instruction controls: `--moondream-target`, `--moondream-endpoint`, `--moondream-api-key`, `--replicate-model-version`, `--replicate-target`, `--replicate-instruction`.
-  - Explicit Gemini cache is auto-skipped for robotics ER (`gemini-robotics-er-1.5-preview`).
+  - Explicit Gemini cache is auto-skipped only for models that do not support it (for example the historical `gemini-robotics-er-1.5-preview`). `gemini-robotics-er-1.6-preview` keeps explicit cache enabled by default.
   - Provider selection: `--provider gemini` (default), `--provider moondream`, or `--provider replicate`. For Moondream, pass `--model-name moondream-3` (auto-applied if you keep the default) and optionally `--moondream-target` multiple times to request one API call per object label (otherwise the prompt text is used as the target). Use `--moondream-endpoint` for a local Moondream Station deployment or rely on `MOONDREAM_API_KEY`/`--moondream-api-key` for cloud calls.
-  - Model selection: pass the Gemini model ID via `--model-name`. The default is `gemini-2.5-flash`, and you can explicitly target `gemini-2.5-flash-lite` or `gemini-robotics-er-1.5-preview` the same way.
+  - Model selection: pass the Gemini model ID via `--model-name`. The default is `gemini-2.5-flash`, and you can explicitly target `gemini-2.5-flash-lite` or `gemini-robotics-er-1.6-preview` the same way.
+  - Robotics 1.6 ablation: in this repo, `--gemini-agentic-vision` is intentionally scoped to `--provider gemini --model-name gemini-robotics-er-1.6-preview`. Use `--output-model-name gemini-robotics-er-1.6-preview-agentic` when you want the tool-enabled condition written to a distinct artifact/report path.
+  - Robotics 1.6 caution: `gemini-robotics-er-1.6-preview` is not yet validated end-to-end in this repo. The first plain full run (`robotics16_label_v1_20260422-1730`) failed after 259/1000 images, exhausted available funds under repeated retries/capacity issues, and produced unusable all-zero metrics because that run hit a prompt/parser mismatch. Start with small smoke runs and monitor spend closely before using Robotics 1.6 on a full dataset.
   - Preset caveat: some presets in `configs/prompts.yaml` include a `model` field and can override CLI `--model-name`; avoid those presets when running strict cross-model comparisons.
   - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
   - Replicate operational caveat (2026-02-19): accounts without payment method/credits can be throttled aggressively (for example, create-prediction `429` with ~`6/min` and burst `1` as observed in validation). For smoke tests on throttled accounts, start with `--workers 1 --rate-limit 12` (increase to `15` if needed).
@@ -142,7 +144,8 @@ Use the batch orchestrator for unattended prompt-ablation matrices:
 - Filters: repeat `--only-dataset` and/or `--only-model` to run a subset.
 - Optional fairness phase: `--auto-fairness`
 - Planning mode: `--dry-run` validates config/preflight and writes planned jobs without API calls.
-- Windows convenience runner (polyp full dataset, 3x3, workers=10, live monitor): `.\scripts\run_polyp_full_3x3_w10.ps1`
+- Canonical Gemini matrix: `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-robotics-er-1.6-preview`, and `gemini-robotics-er-1.6-preview-agentic` across all three prompt families.
+- Windows convenience runner (polyp full dataset, canonical matrix, workers=10, live monitor): `.\scripts\run_polyp_full_3x3_w10.ps1`
   - PowerShell only
   - auto-loads `.env`
   - assumes the correct Conda Python is available on `PATH`, or should be wrapped with `conda run -n gemini_seg powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_polyp_full_3x3_w10.ps1`
@@ -158,7 +161,7 @@ python -m gemini_segmentation.batch \
 # Filtered subset with fixed run-id
 python -m gemini_segmentation.batch \
   --config configs/benchmarks/ablation_robotics_canonical.yaml \
-  --only-model gemini-robotics-er-1.5-preview \
+  --only-model gemini-robotics-er-1.6-preview-agentic \
   --only-dataset polyp \
   --only-dataset derm_lesion \
   --run-id ablation_robotics_subset_20260218-1530
@@ -170,7 +173,7 @@ python -m gemini_segmentation.batch \
   --run-id replicate_sa2va_polyp_full_20260219-162118
 ```
 
-PowerShell convenience run (full polyp 3x3 with live monitor):
+PowerShell convenience run (full polyp canonical matrix with live monitor):
 
 ```powershell
 .\scripts\run_polyp_full_3x3_w10.ps1
@@ -254,8 +257,9 @@ results/<dataset>/<model>/<prompt_key>/<run_id>/
 #### Prompt families and provider-aware shaping
 - **Ablation families:** All tasks support three prompt families held constant across providers. `label_v1` uses only the class name; `desc_v1` adds modality context + short definition + stable attributes; `desc_neg_v1` equals `desc_v1` plus an exclusions block (the negation block is appended byte-for-byte so the only delta is the exclusions text). Enumerate families by repeating `--prompt-family`.
 - **Provider-specific construction:**
-  - **Gemini** receives the full JSON-schema prompt (keys `box_2d`, `mask`, `label`) built via the selected family.
-  - **Moondream** ignores the JSON schema; it receives the target label(s) as the `object` string(s). Use `--moondream-target` overrides for multi-target tasks; otherwise the preset label(s) are sent. The adapter does not pass Gemini-style `temperature`/`thinking_budget` controls to Moondream segment calls.
+  - **Gemini** receives a short Google-style segmentation prompt skeleton with keys `box_2d`, `mask`, and `label`, plus task-specific family text. The prompt uses Google’s segmentation terminology (`base64 encoded png`) and the repo’s parser-compatible PNG data-URI requirement (`data:image/png;base64,`). For officially supported Gemini 2.5 models, the adapter also requests `application/json` structured output with a JSON schema. Robotics-ER 1.6 reuses the same prompt wording but does not enable structured-output schema by default in this repo; tool-enabled Robotics-ER 1.6 runs keep Gemini code execution on and structured output off. Sources: <https://ai.google.dev/gemini-api/docs/image-understanding>, <https://ai.google.dev/gemini-api/docs/structured-output>, <https://developers.googleblog.com/conversational-image-segmentation-gemini-2-5/>.
+  - **Moondream** uses the provider’s native `segment` skill and receives only the target label(s) as the `object` string(s). Use `--moondream-target` overrides for multi-target tasks; otherwise the preset label(s) are sent. The adapter does not pass Gemini-style `temperature`/`thinking_budget` controls to Moondream segment calls, and it rasterizes Moondream’s native SVG path masks into the repo’s normalized mask format. Sources: <https://docs.moondream.ai/skills/>, <https://docs.moondream.ai/skills/segment/>.
+  - **Replicate/Sa2VA** receives short provider-native natural-language instructions rather than Gemini JSON-schema text. `label_v1` uses `Please segment the <target>.`; `desc_v1` adds a short task descriptor; `desc_neg_v1` appends `Exclude: ...`. This matches the direct “Please segment ...” style used in official Sa2VA examples. Sources: <https://huggingface.co/ByteDance/Sa2VA-8B>, <https://github.com/bytedance/Sa2VA>.
   - **Replicate/Sa2VA** expects natural-language instructions rather than schemas. Defaults are prompt-family aware (`label_v1` label-only, `desc_v1` descriptor-enriched, `desc_neg_v1` descriptor plus exclusions). Overrides can be provided with `--replicate-instruction` to align custom wording per label.
 - **Caching/resume:** Cache keys include provider, prompt family, and a hash of the provider-specific payload to avoid collisions between JSON-schema prompts (Gemini) and object/instruction strings (Moondream/Replicate).
 
@@ -285,7 +289,7 @@ results/<dataset>/<model>/<prompt_key>/<run_id>/
 - **Figure 1 best cases:** `python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml`; writes montage PDF/PNG and `selection.yaml` under `artifacts/figures/figure1_best_cases/`.
 - **Fairness Figure 2 + Table 4:** `python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>`; writes combined + panel figure exports (`png|pdf|svg`) and Table 4 under `artifacts/fairness/` (override `--output-dir`).
 - **Enhanced fairness artifacts/report:** `python -m gemini_segmentation.paper.figures_enhanced --fairness-enhanced-dir <results/.../fairness_enhanced>`; writes figures (`png|svg|pdf`), tables (`csv|html|md`), and combined report (`md|html|pdf|docx`) under `artifacts/fairness_enhanced/`.
-- **Prompt-family comparison report:** `python -m gemini_segmentation.paper.prompt_comparison --dataset <name>`; writes `.md|.html|.pdf|.csv` under `results/reports/`; supports `--gemini-run-id`, `--moondream-run-id`, `--replicate-run-id`.
+- **Prompt-family comparison report:** `python -m gemini_segmentation.paper.prompt_comparison --dataset <name>`; writes `.md|.html|.pdf|.csv` under `results/reports/`; supports `--gemini-run-id`, `--moondream-run-id`, `--replicate-run-id`. Gemini-only report generation is supported, so a Robotics 1.6 plain-vs-agentic comparison can be rendered without Moondream or Replicate rows. Active Gemini defaults target the 1.6-era matrix, but the report generator also auto-includes legacy Gemini model directories (including historical `gemini-robotics-er-1.5-preview` runs) when those rows exist for the requested Gemini run ID.
 
 ## Extending the project
 - **New datasets**: Add discovery helpers or manifest builders in `src/gemini_segmentation/data.py` if layout differs; keep `images/`/`masks/` naming stable to reuse the CLI.

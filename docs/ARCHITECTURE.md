@@ -6,6 +6,8 @@
 2. Prompt payload is built from prompt family/preset/provider (`src/gemini_segmentation/prompts.py`, `src/gemini_segmentation/config.py`).
 3. Optional local request cache lookup is performed before provider calls (`src/gemini_segmentation/cache.py`, wired in `src/gemini_segmentation/cli.py`).
 4. Provider adapter performs inference (`src/gemini_segmentation/models.py`) with retry policy applied in CLI orchestration (`max_retries`).
+   - Gemini Robotics-ER 1.6 ablations can optionally enable Gemini code execution (`--gemini-agentic-vision`) while leaving prompt-family text unchanged.
+   - Gemini 2.5 models use provider-gated JSON structured output (`response_mime_type="application/json"` plus schema); Robotics-ER 1.6 keeps the same prompt wording but remains on text-response parsing in this repo unless explicitly allowlisted later.
 5. Responses are parsed into normalized masks and persisted (`src/gemini_segmentation/io.py`).
 6. IoU/Dice/summary metrics are updated incrementally (`src/gemini_segmentation/metrics.py`) with single-channel normalization for RGB/RGBA mask inputs.
 7. Optional fairness analysis consumes saved masks/metrics:
@@ -21,17 +23,19 @@
 - Prompt ablation is represented by `PromptFamily`: `label_v1`, `desc_v1`, `desc_neg_v1`.
 - Provider expansion includes Gemini model switching, Moondream adapter support, and Replicate/Sa2VA adapter support.
 - Cost controls now include local request caching (all providers) plus Gemini explicit context caching when supported by the selected model.
-- Run reproducibility relies on `run_config.json` fields such as `provider`, `prompt_family`, `prompt_hash`, provider-specific targets/instructions, and model identifier.
+- Run reproducibility relies on `run_config.json` fields such as `provider`, `prompt_family`, `prompt_hash`, provider-specific targets/instructions, model identifier, optional `output_model_name`, and `gemini_agentic_vision`.
 
 ## Key Design Contracts
 - Segmenter contract: `segment(image_obj) -> (masks, latency_s, parse_success, timed_out, raw_items)`.
 - Mask contract: `SegmentationMask` stores full-image binary mask plus pixel-space bounding box.
 - Output contract: run artifacts live under `results/<dataset>/<model>/<prompt_key>/<run_id>/`.
+- Output-label contract: `--output-model-name` can decouple artifact/report path labels from the actual API model identifier so batch ablations can compare two conditions that call the same backend model.
 - Replicate pathing note: Replicate model-version identifiers are stored exactly in run config (`replicate_model_version`) and mapped to filesystem-safe `<model>` directory tokens for cross-platform artifact writes.
 - Retry contract: per-image retries are configured by `max_retries` and apply to timeout/parse-failure outcomes.
 - Resume behavior depends on `predictions.jsonl` and per-image artifact regeneration.
 - Batch contract: orchestration outputs live under `results/batches/<run_id>/` with `resolved_config.json`, `job_status.jsonl`, `summary.json`, and per-job logs.
-- Provider-parameter contract: Gemini segment calls may include sampling controls (`thinking_budget`, `temperature`); Moondream/Replicate segment calls omit Gemini-only controls.
+- Provider-parameter contract: Gemini segment calls may include sampling controls (`thinking_budget`, `temperature`), provider-gated structured-output controls (`response_mime_type`, `response_json_schema`), and the Robotics-only `gemini_agentic_vision` code-execution toggle; Moondream/Replicate segment calls omit Gemini-only controls.
+- Cache-isolation contract: local Gemini request-cache keys include the agentic-vision toggle so Robotics 1.6 off/on conditions never share cached predictions.
 - Replicate input contract: adapter sends image payloads as provider-supported file uploads and falls back to data-URI form if the client rejects file-like serialization; raw `bytes` are never passed directly in JSON request bodies.
 - Replicate batch contract: config-level Replicate fields (`replicate_model_version`, `replicate_targets`, `replicate_instructions`, `replicate_cache_dir`) are resolved into provider-specific CLI flags, and fairness run discovery uses the Replicate output model label (`replicate_model_version`) to match CLI artifact paths.
 

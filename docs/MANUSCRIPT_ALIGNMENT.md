@@ -11,7 +11,8 @@ This document keeps implementation changes aligned with:
 - The isolated NanoBanana study lane (`src/nanobanana_segmentation/`) is intentionally separate from manuscript-baseline runtime contracts and does not alter existing CLI semantics unless explicitly promoted.
 
 ## Post Hoc Additions Reflected In Code
-- Provider expansion includes Gemini model selection via `--model-name` (including `gemini-robotics-er-1.5-preview` support as a model identifier).
+- Provider expansion includes Gemini model selection via `--model-name`, with `gemini-robotics-er-1.6-preview` now replacing the active Robotics ER 1.5 path.
+- Provider expansion also includes a repo-scoped Robotics-only Gemini agentic-vision toggle via `--gemini-agentic-vision`, implemented as Gemini code execution on top of Robotics-ER 1.6 while leaving prompt-family wording unchanged.
 - Provider expansion includes Moondream integration (`--provider moondream`) via `MoondreamSegmenter`.
 - Provider expansion includes Replicate/Sa2VA integration (`--provider replicate`) via `Sa2VAReplicateSegmenter`.
 - Prompt ablation family `label_v1` is class-name-only target instruction.
@@ -20,25 +21,33 @@ This document keeps implementation changes aligned with:
 
 ## Prompt-Ablation Method Contract
 - Family semantics must remain stable unless methods are intentionally revised.
-- For Gemini calls, prompt text remains JSON-schema-oriented with keys `box_2d`, `mask`, and `label`.
+- For Gemini calls, prompt text remains JSON-schema-oriented with keys `box_2d`, `mask`, and `label`, but runtime wording should stay close to Google’s recommended segmentation prompt skeleton rather than manuscript-style rationale text.
+- The intended Gemini output contract requires `mask` to be described as a `base64 encoded png` and returned as a PNG data URI beginning with `data:image/png;base64,`; SVG paths, polygon coordinate lists, and other vector encodings are outside the intended contract.
 - Absence behavior for single-target tasks remains `[]`.
 - Absence behavior for multi-target tasks allows omitted entries for absent targets (with `[]` when no targets are present).
 - `desc_neg_v1` should remain an exclusions-focused extension of `desc_v1` rather than a separate redesign.
 
 ## Provider-Aware Prompt Shaping Contract
-- Gemini: receives full JSON-schema prompt text.
-- Moondream: receives object target label(s) (schema text is not sent as the segmentation instruction), using provider-native segment arguments only (no Gemini-style `temperature` / `thinking_budget` controls).
+- Gemini: receives a short Google-style segmentation prompt skeleton plus the selected family’s task-specific wording. For officially documented Gemini 2.5 models, the adapter also requests `application/json` structured output with a segmentation schema; `gemini-robotics-er-1.6-preview` reuses the same prompt wording but does not enable schema mode by default in this repo. Tool-enabled Robotics-ER 1.6 runs keep Gemini code execution enabled and structured output disabled. Source guidance: <https://ai.google.dev/gemini-api/docs/image-understanding>, <https://ai.google.dev/gemini-api/docs/structured-output>, <https://developers.googleblog.com/conversational-image-segmentation-gemini-2-5/>.
+- Moondream: receives object target label(s) only (schema text is not sent as the segmentation instruction), using provider-native segment arguments only (no Gemini-style `temperature` / `thinking_budget` controls). The adapter expects Moondream’s native SVG path plus bounding-box output and rasterizes it into the repo’s normalized mask format. Source guidance: <https://docs.moondream.ai/skills/>, <https://docs.moondream.ai/skills/segment/>.
 - Replicate/Sa2VA: receives natural-language instruction(s), optionally per target.
-- Replicate/Sa2VA defaults are family-aware: `label_v1` uses label-only instructions; `desc_v1` adds descriptor context; `desc_neg_v1` appends exclusions-only deltas to `desc_v1`.
+- Replicate/Sa2VA defaults are family-aware: `label_v1` uses short `Please segment the <target>.` instructions; `desc_v1` adds a short task descriptor/context sentence; `desc_neg_v1` appends exclusions-only deltas to `desc_v1`. Source guidance: <https://huggingface.co/ByteDance/Sa2VA-8B>, <https://github.com/bytedance/Sa2VA>.
 - Replicate/Sa2VA adapter calls must use provider-supported image input formats (file upload or equivalent URI form), not raw JSON `bytes` payloads.
 - Any change to provider shaping should be treated as a methods change and documented here.
 
 ## Caching Contract
 - Local request caching may be used to avoid duplicate inference calls across reruns, but cache keys must include model/provider/prompt/image identity so ablation conditions remain isolated.
+- Robotics-ER 1.6 off/on agentic-vision conditions must remain cache-isolated from each other.
 - Local request cache should persist parse-success responses only; malformed/timeout responses should be retried rather than frozen into cache.
 - Gemini explicit context caching may be enabled for supported Gemini models to reduce prompt-token costs.
 - When Gemini caching is enabled, runs should monitor `usage_metadata.cached_content_token_count` to confirm cache-token reuse in practice.
-- For `gemini-robotics-er-1.5-preview`, Gemini documentation currently lists context caching as unsupported; implementations must gracefully fall back without explicit cache.
+- `gemini-robotics-er-1.6-preview` now remains eligible for explicit Gemini cache. Historical `gemini-robotics-er-1.5-preview` runs remain the unsupported-cache reference point.
+
+## Robotics-ER 1.6 Agentic-Vision Contract
+- In this repo, agentic vision is intentionally scoped to `gemini-robotics-er-1.6-preview`.
+- The ablation is defined as tool enablement only: same prompt family, same retry policy, same dataset, same thinking-budget setting unless intentionally overridden.
+- The tool-enabled condition uses Gemini code execution while preserving the existing JSON-schema segmentation output contract (`box_2d`, `mask`, `label`).
+- Distinct output/report labels may be used via `output_model_name` so the plain and tool-enabled Robotics-ER 1.6 conditions remain separately auditable even though they call the same API model.
 
 ## Reliability Contract
 - Segmentation runs should use bounded retries for timeout/parse-failure outcomes to reduce one-off malformed-output artifacts.
@@ -55,11 +64,13 @@ This document keeps implementation changes aligned with:
 
 ## Reproducibility And Reporting
 - Keep `run_config.json` comprehensive for post hoc analyses and manuscript traceability.
-- Required traceability fields include provider, model identifier, prompt family, prompt hash, prompt text or provider-specific target/instruction payload, retry policy (`max_retries`), and bootstrap settings.
+- Required traceability fields include provider, model identifier, optional output model label, prompt family, prompt hash, prompt text or provider-specific target/instruction payload, retry policy (`max_retries`), bootstrap settings, and whether Gemini agentic vision was enabled.
 - Matrix orchestration runs should record resolved benchmark configuration and execution status under `results/batches/<run_id>/` (`resolved_config.json`, `job_status.jsonl`, `summary.json`) so multi-model ablation batches are auditable.
 - Recommended run-id policy for matrix studies is `<study_id>_<YYYYMMDD-HHMMSS>`; reuse the same run-id only when explicitly resuming the same study settings.
 - Matrix configs should define the full three-family ablation (`label_v1`, `desc_v1`, `desc_neg_v1`) per job unless a sensitivity analysis explicitly narrows scope.
 - Comparative reporting can be generated post-run via `python -m gemini_segmentation.paper.prompt_comparison` (grouped per model and per prompt family; includes mean/median IoU-Dice, 95% CIs, and success rate) without altering segmentation outputs.
+- Prompt-comparison reporting supports Gemini-only runs; Moondream and Replicate rows are optional when those providers were not part of the selected comparison.
+- Prompt-comparison reporting should keep the active Gemini defaults on the Robotics-ER 1.6 family while still auto-including legacy Gemini model rows, including historical `gemini-robotics-er-1.5-preview` outputs, whenever those directories exist for the selected Gemini run ID.
 - IMA++ optional sensitivity analysis may be generated post-run via `python scripts/analyze_ima_plusplus_sensitivity.py` to report:
   - model-vs-MV consensus metrics,
   - model-vs-annotator metrics and per-image dispersion summaries (mean/median/IQR/min/max),

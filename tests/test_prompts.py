@@ -21,6 +21,10 @@ class BuildPromptTests(unittest.TestCase):
         self.assertTrue(prompt.startswith(SCHEMA_PREAMBLE))
         self.assertIn(PROMPTS_DESC["polyp"], prompt)
         self.assertIn(PROMPTS_NEGATION["polyp"], prompt)
+        self.assertNotIn("Supplementary Methods:", prompt)
+        self.assertIn("Output a JSON list of segmentation masks", prompt)
+        self.assertIn("data:image/png;base64,", prompt)
+        self.assertIn("Do not return SVG path data", prompt)
 
     def test_rejects_unknown_family(self) -> None:
         with self.assertRaises(ValueError):
@@ -33,6 +37,9 @@ class BuildPromptTests(unittest.TestCase):
     def test_provider_prompt_preserves_gemini_schema(self) -> None:
         prompt = build_prompt_for_provider("polyp", PromptFamily.DESC_NEG_V1, "gemini")
         self.assertTrue(prompt.prompt.startswith(SCHEMA_PREAMBLE))
+        self.assertNotIn("Supplementary Methods:", prompt.prompt)
+        self.assertIn("data:image/png;base64,", prompt.prompt)
+        self.assertIn("Do not return SVG path data", prompt.prompt)
 
     def test_provider_prompt_for_moondream_is_target_only(self) -> None:
         prompt = build_prompt_for_provider("optic_disc_cup", PromptFamily.LABEL_V1, "moondream")
@@ -43,7 +50,7 @@ class BuildPromptTests(unittest.TestCase):
     def test_provider_prompt_for_replicate_uses_instructions(self) -> None:
         prompt = build_prompt_for_provider("polyp", PromptFamily.LABEL_V1, "replicate")
         self.assertIn("colorectal polyp", prompt.instructions)
-        self.assertEqual(prompt.prompt, "Segment the colorectal polyp.")
+        self.assertEqual(prompt.prompt, "Please segment the colorectal polyp.")
         self.assertNotIn("JSON", prompt.prompt)
 
     def test_provider_prompt_for_replicate_varies_by_family(self) -> None:
@@ -56,6 +63,7 @@ class BuildPromptTests(unittest.TestCase):
         desc_neg_instruction = desc_neg_prompt.instructions["colorectal polyp"]
 
         self.assertNotEqual(label_instruction, desc_instruction)
+        self.assertTrue(desc_instruction.startswith("Please segment the colorectal polyp."))
         self.assertTrue(desc_neg_instruction.startswith(desc_instruction))
         self.assertIn("Exclude:", desc_neg_instruction)
 
@@ -63,7 +71,7 @@ class BuildPromptTests(unittest.TestCase):
         prompt = build_prompt("ima_plusplus", PromptFamily.DESC_NEG_V1)
         self.assertIn("skin lesion", prompt)
         replicate_prompt = build_prompt_for_provider("ima_plusplus", PromptFamily.LABEL_V1, "replicate")
-        self.assertEqual(replicate_prompt.prompt, "Segment the skin lesion.")
+        self.assertEqual(replicate_prompt.prompt, "Please segment the skin lesion.")
         self.assertEqual(list(replicate_prompt.targets or ()), ["skin lesion"])
 
 

@@ -14,11 +14,17 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from google import genai
+from google.genai import types as genai_types
 from google.genai.types import GenerateContentConfig, Part, SafetySetting, ThinkingConfig
 import numpy as np
 from PIL import Image
 
+from .gemini_capabilities import (
+    gemini_supports_explicit_cache,
+    gemini_supports_structured_output,
+)
 from .io import encode_mask_to_b64, parse_segmentation_masks
+from .prompts import GEMINI_SEGMENTATION_RESPONSE_JSON_SCHEMA
 from .types import SegmentationMask
 
 T = TypeVar("T")
@@ -59,6 +65,21 @@ def _usage_metadata_value(usage_metadata: Any, *keys: str) -> Any:
     return None
 
 
+def _build_code_execution_tools() -> list[object]:
+    tool_cls = getattr(genai_types, "Tool", None)
+    code_execution_cls = getattr(genai_types, "ToolCodeExecution", None)
+    if tool_cls is None or code_execution_cls is None:
+        raise RuntimeError(
+            "The installed google-genai package does not expose Tool/ToolCodeExecution; "
+            "upgrade google-genai to use Gemini agentic vision."
+        )
+    try:
+        code_execution = code_execution_cls()
+    except TypeError:
+        code_execution = code_execution_cls
+    return [tool_cls(code_execution=code_execution)]
+
+
 class GeminiSegmenter:
     """Thin wrapper around the google-genai client used in the notebooks."""
 
@@ -76,6 +97,7 @@ class GeminiSegmenter:
         timeout_s: float = 60.0,
         safety_settings: Optional[dict] = None,
         explicit_cache: bool = True,
+        gemini_agentic_vision: bool = False,
         cache_ttl_s: int = 3600,
     ) -> None:
         self.model_name = model_name
@@ -85,6 +107,7 @@ class GeminiSegmenter:
         self.timeout_s = timeout_s
         self.safety_settings = safety_settings or {}
         self.explicit_cache = explicit_cache
+        self.gemini_agentic_vision = gemini_agentic_vision
         self.cache_ttl_s = cache_ttl_s
         self.client = genai.Client()
         logging.info("GenAI backend: %s", "Vertex" if self.client.vertexai else "Dev API")
@@ -102,8 +125,11 @@ class GeminiSegmenter:
     def _get_or_create_prompt_cache(self) -> Optional[str]:
         if not self.explicit_cache:
             return None
-        if "robotics-er" in self.model_name:
-            logging.info("Explicit Gemini context caching is not supported for %s; continuing without it.", self.model_name)
+        if not gemini_supports_explicit_cache(self.model_name):
+            logging.info(
+                "Explicit Gemini context caching is not supported for %s; continuing without it.",
+                self.model_name,
+            )
             return None
 
         cache_key = self._cache_key()
@@ -174,8 +200,13 @@ class GeminiSegmenter:
             if self.safety_settings
             else None,
         }
+        if not self.gemini_agentic_vision and gemini_supports_structured_output(self.model_name):
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_json_schema"] = GEMINI_SEGMENTATION_RESPONSE_JSON_SCHEMA
         if self.cached_content_name:
             config_kwargs["cached_content"] = self.cached_content_name
+        if self.gemini_agentic_vision:
+            config_kwargs["tools"] = _build_code_execution_tools()
         gen_config = GenerateContentConfig(**config_kwargs)
 
         image_part = Part.from_bytes(data=img_bytes, mime_type="image/jpeg")

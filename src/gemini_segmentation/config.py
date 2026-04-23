@@ -39,6 +39,7 @@ def build_run_config(
     prompt: str,
     model_name: str,
     *,
+    output_model_name: Optional[str] = None,
     prompt_family: Optional[str] = None,
     prompt_hash: Optional[str] = None,
     provider: str = "gemini",
@@ -64,6 +65,7 @@ def build_run_config(
     local_cache_enabled: bool = True,
     local_cache_dir: Optional[Path] = None,
     gemini_explicit_cache: bool = True,
+    gemini_agentic_vision: bool = False,
     gemini_cache_ttl_s: Optional[int] = None,
 ) -> RunConfig:
     return RunConfig(
@@ -71,6 +73,7 @@ def build_run_config(
         dataset_root=dataset_root,
         model_name=model_name,
         prompt=prompt,
+        output_model_name=output_model_name,
         prompt_family=prompt_family,
         prompt_hash=prompt_hash,
         provider=provider,
@@ -96,6 +99,7 @@ def build_run_config(
         local_cache_enabled=local_cache_enabled,
         local_cache_dir=local_cache_dir,
         gemini_explicit_cache=gemini_explicit_cache,
+        gemini_agentic_vision=gemini_agentic_vision,
         gemini_cache_ttl_s=gemini_cache_ttl_s,
     )
 

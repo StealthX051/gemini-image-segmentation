@@ -27,15 +27,26 @@ DEFAULT_PROMPT_ORDER = ("label_v1", "desc_v1", "desc_neg_v1")
 DEFAULT_GEMINI_MODELS = (
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-robotics-er-1.5-preview",
+    "gemini-robotics-er-1.6-preview",
+    "gemini-robotics-er-1.6-preview-agentic",
 )
 DEFAULT_MOONDREAM_MODELS = ("moondream-3",)
 DEFAULT_REPLICATE_BATCH_PATTERN = "replicate_sa2va_{dataset}_full_*"
+MODEL_SORT_ORDER = (
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-robotics-er-1.5-preview",
+    "gemini-robotics-er-1.6-preview",
+    "gemini-robotics-er-1.6-preview-agentic",
+    "moondream-3",
+)
 
 MODEL_DISPLAY_NAMES = {
     "gemini-2.5-flash": "Gemini 2.5 Flash",
     "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite",
-    "gemini-robotics-er-1.5-preview": "Gemini Robotics-ER 1.5 Preview",
+    "gemini-robotics-er-1.5-preview": "Gemini Robotics-ER 1.5",
+    "gemini-robotics-er-1.6-preview": "Gemini Robotics-ER 1.6",
+    "gemini-robotics-er-1.6-preview-agentic": "Gemini Robotics-ER 1.6 + Agentic Vision",
     "moondream-3": "Moondream 3",
 }
 PROMPT_FAMILY_DISPLAY_NAMES = {
@@ -116,7 +127,7 @@ def _prompt_sort_key(prompt_family: str) -> tuple[int, str]:
 
 
 def _model_sort_key(model: str) -> tuple[int, str]:
-    known_order = DEFAULT_GEMINI_MODELS + DEFAULT_MOONDREAM_MODELS
+    known_order = MODEL_SORT_ORDER
     if model in known_order:
         return (known_order.index(model), model)
     return (len(known_order), model)
@@ -133,6 +144,18 @@ def _display_model_name(model: str) -> str:
 
 def _display_prompt_family(prompt_family: str) -> str:
     return PROMPT_FAMILY_DISPLAY_NAMES.get(prompt_family, prompt_family)
+
+
+def _merge_models(*model_groups: Iterable[str]) -> List[str]:
+    merged: List[str] = []
+    seen: set[str] = set()
+    for models in model_groups:
+        for model in models:
+            if model in seen:
+                continue
+            merged.append(model)
+            seen.add(model)
+    return merged
 
 
 def _iter_run_dirs(results_dir: Path, dataset: str, model: str, run_id: str) -> Iterable[Path]:
@@ -277,7 +300,7 @@ def _render_markdown(
     *,
     dataset: str,
     gemini_run_id: str,
-    moondream_run_id: str,
+    moondream_run_id: Optional[str],
     replicate_run_id: Optional[str],
     output_path: Path,
 ) -> None:
@@ -287,7 +310,8 @@ def _render_markdown(
     lines.append("")
     lines.append(f"- Generated: {datetime.now().isoformat(timespec='seconds')}")
     lines.append(f"- Gemini run ID: `{gemini_run_id}`")
-    lines.append(f"- Moondream run ID: `{moondream_run_id}`")
+    if moondream_run_id:
+        lines.append(f"- Moondream run ID: `{moondream_run_id}`")
     if replicate_run_id:
         lines.append(f"- Replicate run ID: `{replicate_run_id}`")
     lines.append("")
@@ -322,7 +346,7 @@ def _render_html(
     *,
     dataset: str,
     gemini_run_id: str,
-    moondream_run_id: str,
+    moondream_run_id: Optional[str],
     replicate_run_id: Optional[str],
     output_path: Path,
 ) -> None:
@@ -345,7 +369,8 @@ def _render_html(
     html_parts.append("<div class='meta'>")
     html_parts.append(f"<div>Generated: {datetime.now().isoformat(timespec='seconds')}</div>")
     html_parts.append(f"<div>Gemini run ID: <code>{gemini_run_id}</code></div>")
-    html_parts.append(f"<div>Moondream run ID: <code>{moondream_run_id}</code></div>")
+    if moondream_run_id:
+        html_parts.append(f"<div>Moondream run ID: <code>{moondream_run_id}</code></div>")
     if replicate_run_id:
         html_parts.append(f"<div>Replicate run ID: <code>{replicate_run_id}</code></div>")
     html_parts.append("<div>Metrics include mean with 95% CI, median values, and success rate.</div>")
@@ -387,7 +412,7 @@ def _render_pdf(
     *,
     dataset: str,
     gemini_run_id: str,
-    moondream_run_id: str,
+    moondream_run_id: Optional[str],
     replicate_run_id: Optional[str],
     output_path: Path,
 ) -> None:
@@ -398,12 +423,15 @@ def _render_pdf(
         cover.text(0.05, 0.92, f"Table 1. Prompt-Family Ablation Performance by Model ({dataset})", fontsize=16, weight="bold")
         cover.text(0.05, 0.84, f"Generated: {datetime.now().isoformat(timespec='seconds')}", fontsize=10)
         cover.text(0.05, 0.80, f"Gemini run ID: {gemini_run_id}", fontsize=10)
-        cover.text(0.05, 0.76, f"Moondream run ID: {moondream_run_id}", fontsize=10)
+        meta_y = 0.76
+        if moondream_run_id:
+            cover.text(0.05, meta_y, f"Moondream run ID: {moondream_run_id}", fontsize=10)
+            meta_y -= 0.04
         if replicate_run_id:
-            cover.text(0.05, 0.72, f"Replicate run ID: {replicate_run_id}", fontsize=10)
-            meta_y = 0.66
+            cover.text(0.05, meta_y, f"Replicate run ID: {replicate_run_id}", fontsize=10)
+            meta_y -= 0.06
         else:
-            meta_y = 0.70
+            meta_y -= 0.02
         cover.text(0.05, meta_y, "Metrics include mean with 95% CI, median values, and success rate.", fontsize=10)
         cover.gca().axis("off")
         pdf.savefig(cover, bbox_inches="tight")
@@ -503,34 +531,40 @@ def generate_prompt_comparison_report(
     resolved_moondream_run_id = moondream_run_id or _find_latest_successful_batch_run(
         results_dir, f"moondream3_{dataset}_full_*"
     )
-    if not resolved_moondream_run_id:
-        raise FileNotFoundError(
-            "Unable to auto-detect a successful Moondream full run ID. Pass --moondream-run-id explicitly."
-        )
 
     resolved_replicate_run_id = replicate_run_id or _find_latest_successful_batch_run(
         results_dir, DEFAULT_REPLICATE_BATCH_PATTERN.format(dataset=dataset)
     )
 
     rows: List[MetricRow] = []
+    gemini_models = _merge_models(
+        DEFAULT_GEMINI_MODELS,
+        _discover_models_for_run_id(
+            results_dir=results_dir,
+            dataset=dataset,
+            run_id=resolved_gemini_run_id,
+            provider="gemini",
+        ),
+    )
     rows.extend(
         _collect_rows(
             results_dir=results_dir,
             dataset=dataset,
             run_id=resolved_gemini_run_id,
-            models=DEFAULT_GEMINI_MODELS,
+            models=gemini_models,
             source="gemini",
         )
     )
-    rows.extend(
-        _collect_rows(
-            results_dir=results_dir,
-            dataset=dataset,
-            run_id=resolved_moondream_run_id,
-            models=DEFAULT_MOONDREAM_MODELS,
-            source="moondream",
+    if resolved_moondream_run_id:
+        rows.extend(
+            _collect_rows(
+                results_dir=results_dir,
+                dataset=dataset,
+                run_id=resolved_moondream_run_id,
+                models=DEFAULT_MOONDREAM_MODELS,
+                source="moondream",
+            )
         )
-    )
     if resolved_replicate_run_id:
         replicate_models = _discover_models_for_run_id(
             results_dir=results_dir,

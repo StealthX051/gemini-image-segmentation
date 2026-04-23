@@ -51,6 +51,7 @@ class RunConfig:
     dataset_root: Path
     model_name: str
     prompt: str
+    output_model_name: Optional[str] = None
     prompt_family: Optional[str] = None
     prompt_hash: Optional[str] = None
     provider: str = "gemini"
@@ -76,6 +77,7 @@ class RunConfig:
     local_cache_enabled: bool = True
     local_cache_dir: Optional[Path] = None
     gemini_explicit_cache: bool = True
+    gemini_agentic_vision: bool = False
     gemini_cache_ttl_s: Optional[int] = None
 
 

@@ -1,6 +1,6 @@
 # Agent Handoff (Current State)
 
-Last updated: 2026-04-22.
+Last updated: 2026-04-23.
 
 ## Scope Of This File
 - Read `docs/ENGINEERING_QUICKSTART.md` first if you are starting cold.
@@ -12,10 +12,17 @@ Last updated: 2026-04-22.
 
 ## Current Priorities
 - Prompt-ablation runs (`label_v1`, `desc_v1`, `desc_neg_v1`) across Gemini models.
-- Robotics ER benchmarking via `gemini-robotics-er-1.5-preview`.
+- Robotics ER benchmarking via `gemini-robotics-er-1.6-preview`, plus the repo-scoped `gemini-robotics-er-1.6-preview-agentic` ablation label.
 - Cost control through local request cache plus Gemini explicit cache where supported.
 - Current fairness workflow preference: run fairness analyses on dermoscopy-focused studies unless explicitly requested for other datasets.
 - Fairness Figure 2/Table 4 rendering parity with legacy derm notebook styling and manuscript-facing annotations.
+
+## Robotics ER 1.6 Validation Status
+- Treat `gemini-robotics-er-1.6-preview` as not yet validated in this repo.
+- The first direct plain Robotics-ER 1.6 run (`robotics16_label_v1_20260422-1730`) failed before completion, exhausted available funds under repeated retries/capacity issues, and did not yield a usable benchmark baseline.
+- That failed run only completed 259/1000 images and all saved metrics were zero because the model responses at the time did not match the parser/prompt contract in use for that run.
+- The prompt/runtime have since been revised, but Robotics-ER 1.6 still needs a fresh successful validation run before it should be treated as benchmark-ready.
+- Use caution with spend limits when testing Robotics-ER 1.6; prefer small smoke runs, low concurrency, and close monitoring before launching a full dataset.
 
 ## Runtime Facts
 - CLI entrypoint: `python -m gemini_segmentation.cli segment ...`
@@ -24,7 +31,9 @@ Last updated: 2026-04-22.
 - Prompt families are selected by repeating `--prompt-family` (no `--prompt-families` flag).
 - Default retry policy: `--max-retries 5` (five retries after the first attempt) for timeout/parse-failure/exception retries.
 - Local request cache is enabled by default; failed parses/timeouts are not persisted.
-- Explicit Gemini context cache is enabled by default for supported models and auto-skipped for robotics ER.
+- Explicit Gemini context cache is enabled by default for supported models; Robotics-ER 1.6 keeps it enabled, while historical unsupported models still auto-skip it.
+- `--gemini-agentic-vision` is a Gemini-only flag and is intentionally limited to `gemini-robotics-er-1.6-preview`.
+- Batch configs can now separate batch/report labels from API model IDs via `api_model_name`; the canonical agentic condition uses label `gemini-robotics-er-1.6-preview-agentic` with API model `gemini-robotics-er-1.6-preview`.
 - Moondream segment calls use provider-native target arguments and do not use Gemini-only `temperature`/`thinking_budget` controls.
 - Replicate batch jobs now support explicit parity fields (`replicate_model_version`, `replicate_targets`, `replicate_instructions`, `replicate_cache_dir`) with strict preflight validation.
 - Replicate default instructions are prompt-family aware (`label_v1`, `desc_v1`, `desc_neg_v1`) and remain overrideable per target via repeated `--replicate-instruction`.
@@ -42,6 +51,7 @@ Last updated: 2026-04-22.
 - `.env` is not auto-loaded into shell process env vars by the CLI. Export env vars in the active shell before running.
 - In Codex automation, prefer `conda run -n gemini_seg ...` over `conda activate gemini_seg`.
 - The Windows convenience benchmark script `.\scripts\run_polyp_full_3x3_w10.ps1` auto-loads `.env` but writes `configs/benchmarks/polyp_full_w10.local.yaml`, which dirties the worktree.
+- Robotics-ER 1.6 is not yet validated end-to-end in this repo. The initial full plain run (`robotics16_label_v1_20260422-1730`) failed after 259/1000 images, hit spend-cap/funds exhaustion during retries, and produced unusable all-zero metrics due to a prompt/parser mismatch for that run. Do not treat current Robotics-ER 1.6 results as trustworthy until a fresh validation run succeeds.
 - Ignore rules do not affect already tracked files. If NanoBanana run artifacts were committed previously, untrack them once with `git rm --cached -r results_nanobanana artifacts_nanobanana`.
 - Replicate fairness discovery in batch uses the Replicate output model label (`replicate_model_version`) rather than the matrix display name.
 - Replicate preflight validates token presence but cannot validate account credits/billing state; runtime can still fail with `429` create-prediction throttling on unfunded accounts.
@@ -57,8 +67,11 @@ Last updated: 2026-04-22.
 
 ## Execution Patterns
 - Segment smoke/parity pattern: one model per run, repeat `--prompt-family`, keep local cache enabled, and tune `--workers`/`--rate-limit` for provider limits.
+- Robotics 1.6 tool ablation pattern: keep `--model-name gemini-robotics-er-1.6-preview` fixed, toggle `--gemini-agentic-vision`, and use `--output-model-name gemini-robotics-er-1.6-preview-agentic` for the tool-enabled condition when you need separate artifact paths.
 - Batch benchmark pattern: `python -m gemini_segmentation.batch --config ... [--overrides ...] [--auto-fairness]`.
 - Reporting pattern: `python -m gemini_segmentation.paper.prompt_comparison --dataset <name> [--*-run-id ...]`.
+- Reporting no longer requires a Moondream run ID; Gemini-only comparisons such as Robotics 1.6 plain vs agentic can render directly from the Gemini run ID alone.
+- Prompt-comparison reports keep the current Gemini 1.6/1.6-agentic matrix as the active default, but they also auto-discover legacy Gemini rows such as `gemini-robotics-er-1.5-preview` when those model directories exist for the requested Gemini run ID.
 - Windows full-polyp convenience benchmark: `.\scripts\run_polyp_full_3x3_w10.ps1` (reuse `-RunId` to resume).
 - Canonical runnable command examples live in `README.md`; keep this handoff focused on behavior deltas and gotchas.
 

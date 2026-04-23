@@ -33,7 +33,7 @@ Top-level keys:
 - `prompt_families`: list of prompt families (default `label_v1`, `desc_v1`, `desc_neg_v1`).
 - `timeout`, `max_retries`, `workers`, `sample_size`, `rate_limit`
 - `local_cache`, `local_cache_dir`
-- `gemini_explicit_cache`, `gemini_cache_ttl`
+- `gemini_explicit_cache`, `gemini_cache_ttl`, `gemini_agentic_vision`
 - `thinking_budget`, `temperature` (Gemini-only segment command options; not emitted for Moondream/Replicate jobs)
 - Replicate fields: `replicate_model_version`, `replicate_targets`, `replicate_instructions`, `replicate_cache_dir`
 - `legacy_predictions`
@@ -42,6 +42,7 @@ Top-level keys:
 
 ### `models` entry fields
 - `name` (required)
+- `api_model_name` (optional): actual backend model identifier when `name` is being used as the output/report label
 - Optional overrides for any `defaults` field
 
 ### `datasets` entry fields
@@ -79,7 +80,8 @@ Before execution, the runner validates:
 - Replicate jobs define `replicate_model_version`,
 - Replicate `replicate_instructions` are only used when `replicate_targets` are present,
 - Replicate `replicate_targets` and `replicate_instructions` have matching cardinality when both are provided,
-- robotics ER jobs do not use explicit Gemini context cache.
+- models without explicit Gemini cache support must disable it,
+- Gemini agentic vision is only enabled for `gemini-robotics-er-1.6-preview`.
 
 In `--dry-run` mode, provider API key checks are skipped, but filesystem/config checks still run.
 Preflight does not verify provider account credits/billing state or model-version permission scope; Replicate can still fail at runtime with `429` throttling or `422 Invalid version or not permitted`.
@@ -91,13 +93,14 @@ Preflight does not verify provider account credits/billing state or model-versio
 4. Build deterministic dataset × model job matrix.
 5. Run strict preflight.
 6. Write `results/batches/<run_id>/resolved_config.json`.
-7. Execute segment commands sequentially (provider-specific assembly: Gemini receives `--thinking-budget`/`--temperature`; Moondream/Replicate do not; Replicate additionally receives `--replicate-model-version`, repeated `--replicate-target`, repeated `--replicate-instruction`, and optional `--replicate-cache-dir`).
+7. Execute segment commands sequentially (provider-specific assembly: Gemini receives `--thinking-budget`/`--temperature`, optional `--gemini-agentic-vision`, and optional `--output-model-name` when the batch label differs from the API model; Moondream/Replicate do not receive Gemini-only flags; Replicate additionally receives `--replicate-model-version`, repeated `--replicate-target`, repeated `--replicate-instruction`, and optional `--replicate-cache-dir`).
 8. Optionally execute fairness commands for discovered prompt-family run directories.
 9. Append per-command status records to `job_status.jsonl`.
 10. Write final `summary.json`.
 
 Default failure mode is continue-on-failure, with non-zero process exit if any job fails.
 During non-dry-run execution, child command output is mirrored to both the terminal and per-job log files for single-terminal monitoring. For Replicate jobs, fairness run discovery resolves filesystem-safe model directory tokens generated from `replicate_model_version` (and also checks the legacy raw path form for backward compatibility).
+For Gemini Robotics-ER 1.6 agentic ablations, `name` remains the output/report label (for example `gemini-robotics-er-1.6-preview-agentic`) while `api_model_name` carries the actual API model ID (`gemini-robotics-er-1.6-preview`).
 
 ## Replicate Runtime Gating Notes
 - For Replicate SA2VA, treat funded account credits/payment method as a run prerequisite.
@@ -146,11 +149,11 @@ Dry-run planning:
 ```bash
 python -m gemini_segmentation.batch \
   --config configs/benchmarks/ablation_robotics_canonical.yaml \
-  --only-model gemini-robotics-er-1.5-preview \
+  --only-model gemini-robotics-er-1.6-preview-agentic \
   --dry-run
 ```
 
-PowerShell full polyp 3x3 run (workers=10 + live monitor):
+PowerShell full polyp canonical matrix run (workers=10 + live monitor):
 
 ```powershell
 .\scripts\run_polyp_full_3x3_w10.ps1

@@ -2,6 +2,10 @@ defaults: &defaults
   model: gemini-2.5-flash
   temperature: 0.5
   thinking_budget: 0
+  # Provider-native prompt construction lives in src/gemini_segmentation/prompts.py.
+  # Gemini uses the Google-style segmentation JSON skeleton plus repo-required
+  # PNG data-URI mask wording; Moondream and Replicate/Sa2VA use provider-native
+  # target/instruction forms.
 
 # Default catch-all prompts
 default:

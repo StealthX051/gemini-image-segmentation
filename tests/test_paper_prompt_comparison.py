@@ -63,6 +63,24 @@ def test_generate_prompt_comparison_report_outputs_grouped_files(tmp_path: Path)
         success_rate=0.92,
     )
     _write_run(
+        results_dir / dataset / "gemini-robotics-er-1.6-preview" / "label_v1-cccc3333" / gemini_run_id,
+        prompt_family="label_v1",
+        mean_iou=0.74,
+        mean_dice=0.83,
+        success_rate=0.91,
+    )
+    _write_run(
+        results_dir
+        / dataset
+        / "gemini-robotics-er-1.6-preview-agentic"
+        / "label_v1-dddd4444"
+        / gemini_run_id,
+        prompt_family="label_v1",
+        mean_iou=0.79,
+        mean_dice=0.87,
+        success_rate=0.95,
+    )
+    _write_run(
         results_dir / dataset / "moondream-3" / "label_v1-cccc3333" / moondream_run_id,
         prompt_family="label_v1",
         mean_iou=0.62,
@@ -86,18 +104,122 @@ def test_generate_prompt_comparison_report_outputs_grouped_files(tmp_path: Path)
 
     md_text = artifacts.markdown.read_text(encoding="utf-8")
     assert "## Gemini 2.5 Flash" in md_text
+    assert "## Gemini Robotics-ER 1.6" in md_text
+    assert "## Gemini Robotics-ER 1.6 + Agentic Vision" in md_text
     assert "## Moondream 3" in md_text
     assert "95% CI" in md_text
     assert "Median IoU" in md_text
     assert "Label-Only" in md_text
 
     csv_df = pd.read_csv(artifacts.csv)
-    assert set(csv_df["model"]) == {"gemini-2.5-flash", "moondream-3"}
+    assert set(csv_df["model"]) == {
+        "gemini-2.5-flash",
+        "gemini-robotics-er-1.6-preview",
+        "gemini-robotics-er-1.6-preview-agentic",
+        "moondream-3",
+    }
     assert "model_display" in csv_df.columns
     assert "prompt_family_display" in csv_df.columns
     assert "median_iou" in csv_df.columns
     assert "median_dice" in csv_df.columns
     assert "success_rate" in csv_df.columns
+
+
+def test_generate_prompt_comparison_report_includes_legacy_robotics_er_1_5_run_when_present(
+    tmp_path: Path,
+) -> None:
+    results_dir = tmp_path / "results"
+    output_dir = tmp_path / "reports"
+    dataset = "polyp"
+    gemini_run_id = "polyp_full_3x3_w10_20260201-090000"
+    moondream_run_id = "moondream3_polyp_full_20260201-093000"
+
+    _write_run(
+        results_dir / dataset / "gemini-2.5-flash" / "label_v1-aaaa1111" / gemini_run_id,
+        prompt_family="label_v1",
+        mean_iou=0.70,
+        mean_dice=0.80,
+        success_rate=0.90,
+    )
+    _write_run(
+        results_dir / dataset / "gemini-robotics-er-1.5-preview" / "label_v1-bbbb2222" / gemini_run_id,
+        prompt_family="label_v1",
+        mean_iou=0.72,
+        mean_dice=0.81,
+        success_rate=0.89,
+    )
+    _write_run(
+        results_dir / dataset / "moondream-3" / "label_v1-cccc3333" / moondream_run_id,
+        prompt_family="label_v1",
+        mean_iou=0.62,
+        mean_dice=0.73,
+        success_rate=0.81,
+    )
+
+    artifacts = generate_prompt_comparison_report(
+        results_dir=results_dir,
+        output_dir=output_dir,
+        dataset=dataset,
+        gemini_run_id=gemini_run_id,
+        moondream_run_id=moondream_run_id,
+        replicate_run_id=None,
+    )
+
+    md_text = artifacts.markdown.read_text(encoding="utf-8")
+    assert "## Gemini Robotics-ER 1.5" in md_text
+
+    csv_df = pd.read_csv(artifacts.csv)
+    assert "gemini-robotics-er-1.5-preview" in set(csv_df["model"])
+    assert "Gemini Robotics-ER 1.5" in set(csv_df["model_display"])
+
+
+def test_generate_prompt_comparison_report_supports_gemini_only_robotics_ablation(
+    tmp_path: Path,
+) -> None:
+    results_dir = tmp_path / "results"
+    output_dir = tmp_path / "reports"
+    dataset = "polyp"
+    gemini_run_id = "robotics16_label_v1_20260422-170000"
+
+    _write_run(
+        results_dir / dataset / "gemini-robotics-er-1.6-preview" / "label_v1-aaaa1111" / gemini_run_id,
+        prompt_family="label_v1",
+        mean_iou=0.74,
+        mean_dice=0.83,
+        success_rate=0.91,
+    )
+    _write_run(
+        results_dir
+        / dataset
+        / "gemini-robotics-er-1.6-preview-agentic"
+        / "label_v1-bbbb2222"
+        / gemini_run_id,
+        prompt_family="label_v1",
+        mean_iou=0.79,
+        mean_dice=0.87,
+        success_rate=0.95,
+    )
+
+    artifacts = generate_prompt_comparison_report(
+        results_dir=results_dir,
+        output_dir=output_dir,
+        dataset=dataset,
+        gemini_run_id=gemini_run_id,
+        moondream_run_id=None,
+        replicate_run_id=None,
+    )
+
+    md_text = artifacts.markdown.read_text(encoding="utf-8")
+    assert "Gemini run ID" in md_text
+    assert "Moondream run ID" not in md_text
+    assert "## Gemini Robotics-ER 1.6" in md_text
+    assert "## Gemini Robotics-ER 1.6 + Agentic Vision" in md_text
+
+    csv_df = pd.read_csv(artifacts.csv)
+    assert set(csv_df["model"]) == {
+        "gemini-robotics-er-1.6-preview",
+        "gemini-robotics-er-1.6-preview-agentic",
+    }
 
 
 def test_generate_prompt_comparison_report_includes_replicate_run_when_requested(tmp_path: Path) -> None:

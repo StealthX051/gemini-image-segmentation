@@ -16,6 +16,10 @@ import pandas as pd
 from PIL import Image
 
 from .config import build_run_config, dump_run_config, load_preset, resolve_preset_name
+from .gemini_capabilities import (
+    GEMINI_ROBOTICS_ER_1_6_PREVIEW,
+    gemini_supports_agentic_vision,
+)
 from .prompts import ProviderPrompt, PromptFamily, build_prompt_for_provider
 from .data import (
     DEFAULT_MANIFEST_TEMPLATE,
@@ -73,6 +77,37 @@ def _safe_model_dir_name(model_name: str) -> str:
     token = model_name.strip().replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
     token = re.sub(r"[^A-Za-z0-9_.-]", "_", token)
     return token or "model"
+
+
+def _resolved_output_model_name(
+    *,
+    provider: str,
+    model_name: str,
+    replicate_model_version: str | None,
+    output_model_name: str | None,
+) -> str:
+    if output_model_name:
+        return output_model_name
+    if provider == "replicate" and replicate_model_version:
+        return replicate_model_version
+    return model_name
+
+
+def _validate_gemini_agentic_vision(
+    *,
+    provider: str,
+    model_name: str,
+    gemini_agentic_vision: bool,
+) -> None:
+    if not gemini_agentic_vision:
+        return
+    if provider != "gemini":
+        raise ValueError("--gemini-agentic-vision is only supported when --provider is 'gemini'.")
+    if not gemini_supports_agentic_vision(model_name):
+        raise ValueError(
+            "--gemini-agentic-vision is only supported for "
+            f"'{GEMINI_ROBOTICS_ER_1_6_PREVIEW}'."
+        )
 
 
 def _prompt_payload(provider: str, prompt_family: str | None, prompt: ProviderPrompt) -> Dict[str, object]:
@@ -206,6 +241,7 @@ def _process_image_with_cache(
     prompt_family: str | None,
     temperature: float | None,
     thinking_budget: int | None,
+    gemini_agentic_vision: bool = False,
     limiter: RateLimiter | None = None,
     request_cache: Optional[DiskRequestCache] = None,
     targets: tuple[str, ...] | None = None,
@@ -221,6 +257,7 @@ def _process_image_with_cache(
             prompt_family=prompt_family,
             temperature=temperature,
             thinking_budget=thinking_budget,
+            gemini_agentic_vision=gemini_agentic_vision,
             targets=targets,
         )
         cached_payload = request_cache.load(cache_key)
@@ -382,6 +419,7 @@ def command_segment(args: argparse.Namespace) -> None:
 
     run_id = args.run_id or _default_run_id()
     base_model_name = args.model_name
+    base_output_model_name = getattr(args, "output_model_name", None)
     base_provider = args.provider
     base_replicate_model_version = args.replicate_model_version
     base_replicate_targets = args.replicate_targets
@@ -401,6 +439,7 @@ def command_segment(args: argparse.Namespace) -> None:
     base_local_cache_dir = local_cache_dir
     base_gemini_explicit_cache = gemini_explicit_cache
     base_gemini_cache_ttl = gemini_cache_ttl
+    base_gemini_agentic_vision = bool(getattr(args, "gemini_agentic_vision", False))
     base_max_retries = int(getattr(args, "max_retries", 5))
 
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -411,8 +450,10 @@ def command_segment(args: argparse.Namespace) -> None:
         request_cache = DiskRequestCache(local_cache_dir) if local_cache_enabled else None
         gemini_explicit_cache = base_gemini_explicit_cache
         gemini_cache_ttl = base_gemini_cache_ttl
+        gemini_agentic_vision = base_gemini_agentic_vision
         max_retries = base_max_retries
         model_name = base_model_name
+        output_model_name = base_output_model_name
         run_provider = base_provider
         replicate_model_version = base_replicate_model_version
         replicate_targets_arg = base_replicate_targets
@@ -430,12 +471,13 @@ def command_segment(args: argparse.Namespace) -> None:
         prompt_hash = _prompt_hash(prompt_payload)
         prompt_key = _prompt_key(prompt_family, prompt_hash)
 
-        model_label = (
-            (replicate_model_version or model_name)
-            if run_provider == "replicate"
-            else model_name
+        output_model_label = _resolved_output_model_name(
+            provider=run_provider,
+            model_name=model_name,
+            replicate_model_version=replicate_model_version,
+            output_model_name=output_model_name,
         )
-        model_dir_name = _safe_model_dir_name(model_label)
+        model_dir_name = _safe_model_dir_name(output_model_label)
         paths = _prepare_output_dirs(
             Path(args.results_dir), args.dataset_name, model_dir_name, prompt_key, run_id
         )
@@ -450,8 +492,13 @@ def command_segment(args: argparse.Namespace) -> None:
                 )
 
         run_provider = existing_run_config.get("provider", run_provider)
+        model_name = str(existing_run_config.get("model_name", model_name))
+        output_model_name = existing_run_config.get("output_model_name", output_model_name)
         gemini_explicit_cache = bool(
             existing_run_config.get("gemini_explicit_cache", gemini_explicit_cache)
+        )
+        gemini_agentic_vision = bool(
+            existing_run_config.get("gemini_agentic_vision", gemini_agentic_vision)
         )
         gemini_cache_ttl = int(
             existing_run_config.get("gemini_cache_ttl_s", gemini_cache_ttl)
@@ -517,6 +564,12 @@ def command_segment(args: argparse.Namespace) -> None:
                     "--replicate-model-version is required when provider is 'replicate'"
                 )
 
+        _validate_gemini_agentic_vision(
+            provider=run_provider,
+            model_name=model_name,
+            gemini_agentic_vision=gemini_agentic_vision,
+        )
+
         moondream_targets = (
             args.moondream_targets or existing_run_config.get("moondream_targets") or None
         )
@@ -548,12 +601,13 @@ def command_segment(args: argparse.Namespace) -> None:
         ).hexdigest()
         prompt_key = _prompt_key(prompt_family, prompt_hash)
 
-        model_label = (
-            (replicate_model_version or model_name)
-            if run_provider == "replicate"
-            else model_name
+        output_model_label = _resolved_output_model_name(
+            provider=run_provider,
+            model_name=model_name,
+            replicate_model_version=replicate_model_version,
+            output_model_name=output_model_name,
         )
-        model_dir_name = _safe_model_dir_name(model_label)
+        model_dir_name = _safe_model_dir_name(output_model_label)
         current_model_label = paths["run_dir"].parts[-3]
         current_prompt_key = paths["run_dir"].parts[-2]
         if model_dir_name != current_model_label or prompt_key != current_prompt_key:
@@ -569,7 +623,10 @@ def command_segment(args: argparse.Namespace) -> None:
             prompt=resolved_prompt,
             prompt_family=prompt_family,
             prompt_hash=prompt_hash,
-            model_name=model_label,
+            model_name=(replicate_model_version or model_name)
+            if run_provider == "replicate"
+            else model_name,
+            output_model_name=output_model_name,
             provider=run_provider,
             thinking_budget=args.thinking_budget,
             temperature=args.temperature,
@@ -592,6 +649,7 @@ def command_segment(args: argparse.Namespace) -> None:
             local_cache_enabled=local_cache_enabled,
             local_cache_dir=local_cache_dir if local_cache_enabled else None,
             gemini_explicit_cache=gemini_explicit_cache,
+            gemini_agentic_vision=gemini_agentic_vision,
             gemini_cache_ttl_s=gemini_cache_ttl,
         )
         dump_run_config(config, paths["run_config"])
@@ -667,6 +725,7 @@ def command_segment(args: argparse.Namespace) -> None:
                         thinking_budget=args.thinking_budget,
                         timeout_s=args.timeout,
                         explicit_cache=gemini_explicit_cache,
+                        gemini_agentic_vision=gemini_agentic_vision,
                         cache_ttl_s=gemini_cache_ttl,
                     )
             return thread_local.segmenter
@@ -683,7 +742,7 @@ def command_segment(args: argparse.Namespace) -> None:
                 total_pending,
                 prompt_key,
                 run_provider,
-                model_label,
+                output_model_label,
                 args.workers,
                 max_retries,
                 args.rate_limit,
@@ -696,11 +755,12 @@ def command_segment(args: argparse.Namespace) -> None:
                             get_segmenter,
                             p,
                             provider=run_provider,
-                            model_name=model_label,
+                            model_name=model_name,
                             prompt_hash=request_prompt_digest,
                             prompt_family=prompt_family,
                             temperature=args.temperature if run_provider == "gemini" else None,
                             thinking_budget=args.thinking_budget if run_provider == "gemini" else None,
+                            gemini_agentic_vision=gemini_agentic_vision if run_provider == "gemini" else False,
                             limiter=rate_limiter,
                             request_cache=request_cache,
                             targets=cache_targets,
@@ -936,7 +996,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="gemini",
         help="Segmentation backend to use",
     )
-    seg.add_argument("--model-name", default="gemini-2.5-flash", help="Gemini model name")
+    seg.add_argument("--model-name", default="gemini-2.5-flash", help="Backend model name")
+    seg.add_argument(
+        "--output-model-name",
+        help="Optional model label to use for output paths and reports while keeping the API model unchanged",
+    )
     seg.add_argument("--prompt", default="", help="Prompt text to send")
     seg.add_argument("--prompt-file", help="Path to a prompt text file")
     seg.add_argument("--prompt-preset", help="YAML file containing prompt presets")
@@ -957,6 +1021,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     seg.add_argument("--thinking-budget", type=int, default=0, help="Thinking budget tokens")
     seg.add_argument("--temperature", type=float, default=0.5, help="Sampling temperature")
+    seg.add_argument(
+        "--gemini-agentic-vision",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Enable Gemini code execution for Robotics-ER 1.6 image understanding ablations "
+            "(Gemini provider only)"
+        ),
+    )
     seg.add_argument("--timeout", type=float, default=60.0, help="Client-side timeout per image")
     seg.add_argument(
         "--max-retries",

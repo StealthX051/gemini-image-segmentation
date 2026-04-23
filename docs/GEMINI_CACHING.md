@@ -4,12 +4,13 @@ This is a dated operational snapshot, not a permanent source of truth for extern
 For repo behavior, defer to code plus `docs/ARCHITECTURE.md`.
 When current provider support matters, re-check the upstream provider docs.
 
-Verified on **2026-02-18** against official Gemini docs.
+Verified on **2026-04-22** against official Gemini docs.
 
 ## Model Support Snapshot
 - `gemini-2.5-flash`: caching supported.
 - `gemini-2.5-flash-lite`: caching supported.
-- `gemini-robotics-er-1.5-preview`: robotics docs list caching as **not supported**.
+- `gemini-robotics-er-1.6-preview`: robotics docs list caching as supported.
+- Historical note: `gemini-robotics-er-1.5-preview` was documented as **not supported** for explicit cache.
 
 ## API-Side Caching Modes
 - Implicit caching: enabled automatically on supported models when repeated prefix context is detected.
@@ -20,11 +21,11 @@ Verified on **2026-02-18** against official Gemini docs.
 
 ## Repo Implementation
 - Local cache (all providers): `src/gemini_segmentation/cache.py` + `src/gemini_segmentation/cli.py`
-  - Keyed by provider, model, prompt signature, image SHA-256, and decode settings.
+  - Keyed by provider, model, prompt signature, image SHA-256, decode settings, and Gemini agentic-vision state.
   - Stores parse-success responses only.
 - Gemini explicit cache (supported Gemini models): `src/gemini_segmentation/models.py`
   - Enabled by default.
-  - Auto-skips explicit cache for robotics ER models.
+  - Auto-skips explicit cache only for models documented as unsupported.
   - Logs Gemini cached token usage when present.
 
 ## Recommended CLI Flags For Ablation Runs
@@ -33,8 +34,10 @@ Verified on **2026-02-18** against official Gemini docs.
   - `--local-cache-dir results/.request_cache`
 - Keep Gemini explicit cache on for 2.5 Flash / 2.5 Flash-Lite:
   - `--gemini-explicit-cache --gemini-cache-ttl 3600`
-- Robotics ER:
-  - Explicit cache is auto-disabled by adapter logic; local cache still works.
+- Robotics ER 1.6:
+  - Keep explicit cache on unless you are deliberately reproducing a historical unsupported model path.
+  - Enable `--gemini-agentic-vision` only for the tool-enabled Robotics 1.6 ablation condition.
+  - Use `--output-model-name gemini-robotics-er-1.6-preview-agentic` when you need separate artifact paths for that condition.
 
 ## Operational Gotchas
 - `.env` keys must be exported into the active shell process before running CLI commands (CLI does not auto-load `.env`).
@@ -44,4 +47,5 @@ Verified on **2026-02-18** against official Gemini docs.
 - Context caching guide: https://ai.google.dev/gemini-api/docs/caching
 - Models capability page: https://ai.google.dev/gemini-api/docs/models
 - Robotics model docs: https://ai.google.dev/gemini-api/docs/robotics
+- Code execution with images: https://ai.google.dev/gemini-api/docs/code-execution#images
 - Pricing (context caching rows): https://ai.google.dev/gemini-api/docs/pricing
