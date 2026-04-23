@@ -1,5 +1,8 @@
 # NanoBanana 2 Study Specification
 
+Read this only when working on the isolated NanoBanana lane.
+For core `gemini_segmentation` work, use the main engineering docs instead.
+
 This document is the implementation-facing source of truth for the isolated NanoBanana study lane.
 It preserves the core requirements from the original coding brief and maps them to this repository.
 

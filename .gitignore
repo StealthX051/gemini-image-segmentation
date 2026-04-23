@@ -1,22 +1,43 @@
-# ---- venv / conda ----
+# ---- local environments / secrets ----
 .env
-.venv/
-env/
+.envrc
+.env.*
+!.env.example
+/.venv/
+/venv/
+/env/
+/.tmp-bootstrap-venv/
 *.conda
+.python-version
+
+# ---- Python packaging / caches ----
 *.egg-info/
 __pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage*
+htmlcov/
+build/
+dist/
+pip-wheel-metadata/
 
-# VS Code settings & misc IDE junk
+# ---- editor / notebook state ----
 .vscode/
+.idea/
+.ipynb_checkpoints/
 ipynb_checkpoints/
 *.code-workspace
 
-# OS cruft
+# ---- OS cruft ----
 .DS_Store
 Thumbs.db
 
-# Data & artefacts
-# comment these out if you DO want to version-control them
+# ---- local data and generated artefacts ----
+# Comment these out if you intentionally want to version them.
 segmented-images/
 data/
 data_readability/
@@ -33,7 +54,5 @@ hyper-kvasir-segmentation.zip
 logs/
 runs/
 
-# secrets
-.envrc
-.env.*
+# ---- local benchmark overrides ----
 configs/benchmarks/*.local.yaml

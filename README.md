@@ -8,27 +8,37 @@ This repository contains two primary segmentation workflows plus one isolated st
 
 ## Agentic development files
 - `AGENTS.md`: repository-level instructions for coding agents.
+- `docs/ENGINEERING_QUICKSTART.md`: fast-path engineering setup and task-based doc routing.
+- `docs/SETUP.md`: canonical fresh-clone setup and reproducible environment guide.
 - `.codex/config.toml`: repo-local Codex defaults (model/sandbox/doc discovery).
 - `CONTRIBUTING.md`: contributor workflow and validation commands.
 - `docs/DOCUMENTATION_MAP.md`: canonical documentation ownership map and update policy.
 - `docs/ARCHITECTURE.md`: module boundaries, contracts, and extension points.
 - `docs/MANUSCRIPT_ALIGNMENT.md`: manuscript + post hoc method alignment constraints.
-- `docs/AGENT_HANDOFF.md`: current operational handoff for new agent sessions.
-- `docs/VALIDATION_SNAPSHOTS.md`: archived point-in-time run IDs/metric snapshots and historical smoke command variants.
-- `docs/GEMINI_CACHING.md`: Gemini/API caching support notes and benchmark run guidance.
+- `docs/AGENT_HANDOFF.md`: dated operational snapshot for current caveats and recent validation notes.
+- `docs/history/VALIDATION_SNAPSHOTS.md`: archived point-in-time run IDs, metrics, and smoke command variants.
+- `docs/GEMINI_CACHING.md`: dated cache-support snapshot and repo caching notes.
 - `docs/BATCH_ORCHESTRATION.md`: unattended matrix-runner workflow and config schema.
 - `docs/METHODS_CHANGELOG.md`: ordered method-version and change-ID history.
 - `docs/NOTEBOOKS.md`: legacy notebook map and migration guidance.
-- `llms.txt`: compact LLM index of canonical files and commands.
+- `llms.txt`: compact secondary index for non-Codex tooling; `AGENTS.md` and `docs/ENGINEERING_QUICKSTART.md` are the primary agent entrypoints.
 
 ## Environment
-- **Python**: Use the conda environment in `environment.yml` (Python 3.11, scientific stack, stats, plotting, and `google-genai`).
+- **Python**: `environment.yml` bootstraps Python 3.11, `pip`, and the Cairo runtime; the editable package install then pulls the Python dependency set from `pyproject.toml`.
+- **Codex/automation default**: for non-interactive runs, prefer `conda run -n gemini_seg ...` instead of relying on `conda activate`.
+- **Windows + WSL note**: this repository lives on Windows. In bash/WSL sessions, use `/mnt/...` paths and bash commands. Use PowerShell only for `.ps1` scripts or clearly Windows-native tasks.
+- **Fresh clone setup**: use `docs/SETUP.md` for the canonical Conda and `venv` setup flows.
 - **Secrets**: Provide a `.env` file with the following keys before running notebooks or the CLI:
   - `GOOGLE_API_KEY`
   - `MOONDREAM_API_KEY` (or pass `--moondream-api-key`)
   - `REPLICATE_API_TOKEN`
 - **Shell export note**: the CLI does not auto-load `.env`; export env vars in the active shell before running commands.
+  - Bash/WSL: `set -a; source .env; set +a`
   - PowerShell: `Get-Content .env | ForEach-Object { if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }; $n,$v = $_ -split '=',2; Set-Item -Path "Env:$n" -Value $v.Trim().Trim('"').Trim("'") }`
+- **Wrapper note**:
+  - `python -m gemini_segmentation.cli ...` does not auto-load `.env`
+  - `./scripts/launch_batch.sh ...` does auto-load `.env`
+  - `.\scripts\run_polyp_full_3x3_w10.ps1` does auto-load `.env`
 - **GPU/CPU**: Workloads are CPU-bound by default; the code auto-resizes images to ≤1024 px as in the paper.
 
 ## Repository layout
@@ -55,22 +65,48 @@ The CLI mirrors the notebook behavior while consolidating outputs under `results
 ### Installation
 ```bash
 conda env create -f environment.yml
-conda activate gemini_seg
-python -m pip install -e .
 ```
-Ensure `.env` contains API keys; CLI commands require env vars in the active shell process (the CLI does not auto-load `.env`).
-For quick non-Conda test runs, install minimal test deps:
+The Conda path above is the full fresh-clone bootstrap. For interactive local work you can still activate the env manually, but for agent automation and reproducible command snippets, prefer `conda run -n gemini_seg ...`.
+
+If you change dependency metadata later and want to refresh an existing env:
 
 ```bash
-pip install -r requirements-dev.txt
+conda run -n gemini_seg python scripts/bootstrap_env.py
+```
+
+Alternative `venv` path:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python scripts/bootstrap_env.py
+```
+
+On Debian/Ubuntu-like systems, install `python3-venv` first if `python3 -m venv` is unavailable.
+
+Ensure `.env` contains API keys; CLI commands require env vars in the active shell process (the CLI does not auto-load `.env`).
+
+Verify the interpreter when needed:
+
+```bash
+conda run -n gemini_seg python -c "import sys; print(sys.executable)"
+```
+
+Fast verification:
+
+```bash
+conda run -n gemini_seg gemini-seg --help
+conda run -n gemini_seg nanobanana-study --help
+conda run -n gemini_seg python -m gemini_segmentation.cli --help
+conda run -n gemini_seg pytest -q tests/test_config.py tests/test_prompts.py tests/test_batch.py
 ```
 
 If tests fail with `site-packages/docx.py` and `ModuleNotFoundError: No module named 'exceptions'`, remove the legacy `docx` package and reinstall `python-docx`:
 
 ```bash
-python -m pip uninstall -y docx
-python -m pip install --upgrade python-docx
-python -c "import docx; print(docx.__file__)"
+conda run -n gemini_seg python -m pip uninstall -y docx
+conda run -n gemini_seg python -m pip install --upgrade python-docx
+conda run -n gemini_seg python -c "import docx; print(docx.__file__)"
 ```
 
 ### Commands
@@ -89,7 +125,7 @@ python -c "import docx; print(docx.__file__)"
   - Replicate example: `python -m gemini_segmentation.cli segment polyp /data/hk_seg --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --replicate-target polyp --replicate-instruction "Segment the visible polyp" --timeout 120 --workers 2`. The `--replicate-instruction` flags align 1:1 with `--replicate-target` entries to send label-specific instructions alongside each call.
   - Replicate operational caveat (2026-02-19): accounts without payment method/credits can be throttled aggressively (for example, create-prediction `429` with ~`6/min` and burst `1` as observed in validation). For smoke tests on throttled accounts, start with `--workers 1 --rate-limit 12` (increase to `15` if needed).
   - Replicate version caveat: `--replicate-model-version` must be a valid, accessible version ID. Invalid or inaccessible IDs return `422 Invalid version or not permitted`.
-  - Replicate validation status (2026-02-19): end-to-end SA2VA implementation is validated, including a completed full polyp 3-family batch run (`replicate_sa2va_polyp_full_20260219-162118`) with 1000 predictions per family. See `docs/VALIDATION_SNAPSHOTS.md` for exact run paths and per-family metrics.
+  - Replicate validation status (2026-02-19): end-to-end SA2VA implementation is validated, including a completed full polyp 3-family batch run (`replicate_sa2va_polyp_full_20260219-162118`) with 1000 predictions per family. See `docs/history/VALIDATION_SNAPSHOTS.md` for exact run paths and per-family metrics.
 - `fairness`: Compute dermoscopy fairness artifacts from a completed run: `fairness <dataset_name> <dataset_root> <results/.../run_id> [--audit-mode legacy|enhanced] [--enhanced-config configs/fairness_enhanced.yaml] [--enhanced-stage all|core|sensitivity|augment] [--enhanced-feature-profile balanced|full|minimal] [--enhanced-augment-columns <csv>] [--enhanced-resume|--no-enhanced-resume] [--enhanced-checkpoint-every N] [--enhanced-workers-auto|--no-enhanced-workers-auto] [--manifest] [--sample-size] [--workers] [--success-threshold] [--bootstrap-method] [--bootstrap-resamples]`.
   - `--audit-mode legacy` (default): preserves the historical ITA/Fitzpatrick CSV schema under `<run_dir>/fairness/`.
   - `--audit-mode enhanced`: runs Fairness Audit v2 and writes expanded artifacts under `<run_dir>/fairness_enhanced/`.
@@ -107,6 +143,10 @@ Use the batch orchestrator for unattended prompt-ablation matrices:
 - Optional fairness phase: `--auto-fairness`
 - Planning mode: `--dry-run` validates config/preflight and writes planned jobs without API calls.
 - Windows convenience runner (polyp full dataset, 3x3, workers=10, live monitor): `.\scripts\run_polyp_full_3x3_w10.ps1`
+  - PowerShell only
+  - auto-loads `.env`
+  - assumes the correct Conda Python is available on `PATH`, or should be wrapped with `conda run -n gemini_seg powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_polyp_full_3x3_w10.ps1`
+  - writes `configs/benchmarks/polyp_full_w10.local.yaml`, which dirties the worktree
 
 Quick examples:
 

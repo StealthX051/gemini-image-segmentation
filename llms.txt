@@ -1,62 +1,25 @@
-# Gemini Image Segmentation (LLM Index)
+# Gemini Image Segmentation (Secondary LLM Index)
 
-Primary project docs:
-- README.md
+Primary agent entrypoints:
 - AGENTS.md
-- CONTRIBUTING.md
-- docs/ARCHITECTURE.md
-- docs/MANUSCRIPT_ALIGNMENT.md
-- docs/AGENT_HANDOFF.md
-- docs/GEMINI_CACHING.md
-- docs/BATCH_ORCHESTRATION.md
-- docs/METHODS_CHANGELOG.md
-- docs/NOTEBOOKS.md
+- docs/DOCUMENTATION_MAP.md
+- docs/ENGINEERING_QUICKSTART.md
+- docs/SETUP.md
+- README.md
 
-Legacy notebook locations:
-- notebooks/
-- ita_fitzpatrick_analysis.ipynb
+Default execution rules:
+- Use `conda run -n gemini_seg ...` for Python and `pytest` commands.
+- Use bash/WSL for normal shell work; use PowerShell only for `.ps1` scripts.
+- The direct CLI does not auto-load `.env`.
+- `scripts/launch_batch.sh` and `scripts/run_polyp_full_3x3_w10.ps1` do auto-load `.env`.
+- Use subagents when helpful, but keep patches minimal and behavior-preserving.
 
-Primary code entrypoints:
-- src/gemini_segmentation/cli.py
-- src/gemini_segmentation/models.py
-- src/gemini_segmentation/io.py
-- src/gemini_segmentation/cache.py
-- src/gemini_segmentation/metrics.py
-- src/gemini_segmentation/fairness.py
-- src/gemini_segmentation/prompts.py
-- src/gemini_segmentation/batch.py
-- src/gemini_segmentation/paper/prompt_comparison.py
-
-Core config files:
-- configs/prompts.yaml
-- configs/benchmarks/ablation_robotics_canonical.yaml
-- configs/paper.yaml
-- configs/figure1_best_cases.yaml
-- .codex/config.toml
-
-Main commands:
-- python -m gemini_segmentation.cli segment <dataset_name> <dataset_root> [flags]
-- python -m gemini_segmentation.cli segment polyp <dataset_root> --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --prompt-family label_v1 --sample-size 10 --workers 10 --rate-limit 0.5 --max-retries 5 --local-cache --local-cache-dir results/.request_cache --replicate-cache-dir results/.replicate_mask_cache --run-id <run_id>
-- python -m gemini_segmentation.cli segment polyp <dataset_root> --provider replicate --replicate-model-version bytedance/sa2va-26b-image:addd35cc4f8e0761836ff1e4af324bd7b1f4fa67ee3d384b69202cb288a7dd4f --prompt-family label_v1 --sample-size 10 --workers 1 --rate-limit 12 --max-retries 2 --local-cache --local-cache-dir results/.request_cache --replicate-cache-dir results/.replicate_mask_cache --run-id <run_id>  # throttled-account fallback
-- python -m gemini_segmentation.cli fairness <dataset_name> <dataset_root> <run_dir> [flags]
-- python -m gemini_segmentation.batch --config <configs/benchmarks/*.yaml> [flags]
-- python -m gemini_segmentation.batch --config configs/benchmarks/ablation_robotics_canonical.yaml --overrides configs/benchmarks/replicate_sa2va_polyp.local.yaml --run-id replicate_sa2va_polyp_full_<YYYYMMDD-HHMMSS>
-- .\scripts\run_polyp_full_3x3_w10.ps1 [-RunId <id>] [-NoLiveMonitor]
-- python -m gemini_segmentation.paper.make_all --results <path/to/results.csv_or.parquet>
-- python -m gemini_segmentation.paper.best_cases --config configs/figure1_best_cases.yaml
-- python -m gemini_segmentation.paper.figures --fairness-dir <results/.../fairness>
-- python -m gemini_segmentation.paper.prompt_comparison --dataset polyp [--gemini-run-id <id>] [--moondream-run-id <id>] [--replicate-run-id <id>]
-- python scripts/prepare_ima_plusplus.py --download-zenodo --download-split-csvs --download-images --download-images-mode api --isic-api-workers 12
-- python scripts/analyze_ima_plusplus_sensitivity.py --run-dir <results/.../run_id> [--dataset-root <data/IMAplusplus_cli>]
-
-Primary test targets:
-- pytest -q
-- pytest -q tests/test_cli.py tests/test_prompts.py
-- pytest -q tests/test_batch.py
-- pytest -q tests/test_moondream_segmenter.py
-- pytest -q tests/test_metrics.py
-- pytest -q tests/test_replicate_segmenter.py
-- pytest -q tests/test_replicate_segmenter.py tests/test_cli.py tests/test_batch.py tests/test_prompts.py
-- pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py
-- pytest -q tests/test_paper_prompt_comparison.py
-- pytest -q tests/test_prepare_ima_plusplus.py tests/test_ima_plusplus_sensitivity.py
+Read by scope:
+- Setup/bootstrap: `docs/SETUP.md`
+- Runtime: `docs/ARCHITECTURE.md`
+- Batch: `docs/BATCH_ORCHESTRATION.md`
+- Methods/manuscript: `docs/MANUSCRIPT_ALIGNMENT.md`, `docs/METHODS_CHANGELOG.md`
+- Notebooks: `docs/NOTEBOOKS.md`
+- NanoBanana: `docs/NANOBANANA_STUDY.md`, `src/nanobanana_segmentation/AGENTS.md`
+- Operational snapshots: `docs/AGENT_HANDOFF.md`, `docs/GEMINI_CACHING.md`
+- History only: `docs/history/VALIDATION_SNAPSHOTS.md`

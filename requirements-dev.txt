@@ -1,24 +1,2 @@
-numpy
-pandas
-pillow
-pyyaml
-scipy
-scikit-image
-matplotlib
-scikit-learn
-scikit-posthocs
-pytest
-python-dotenv
-pingouin
-cliffs-delta
-opencv-python
-google-genai
-replicate
-moondream
-cairosvg
-python-docx
-pyarrow
-fastapi
-uvicorn
-prometheus-client
-python-multipart
+# Full editable development install, including tests and notebook tooling.
+-e .[dev,notebooks]

@@ -2,33 +2,11 @@ name: gemini_seg
 channels:
   - conda-forge
 dependencies:
-  # ---- core stack ----
-  - python=3.11          # keep in sync with vscode interpreter
-  - numpy
-  - scikit-image
-  - matplotlib
-  - pillow
-  - pyyaml
-  - scikit-learn
-  - scikit-posthocs
-  - python-dotenv
-  - pingouin
-  - pandas
-  - pyarrow
-  - cliffs_delta
-  - opencv-python
-  # ---- utilities ----
-  - jupyterlab           # optional; comment out if not needed
-  - ipywidgets
-  # ---- PiP-only packages ----
-  - pip
+  # Minimal bootstrap environment:
+  # - Python + pip
+  # - Cairo runtime needed by cairosvg on fresh Conda installs
+  - python=3.11
+  - pip>=24
+  - cairo
   - pip:
-      - google-genai   # Gemini API client. google-generativeai is now deprecated
-      - replicate
-      - moondream
-      - cairosvg
-      - python-docx
-      - fastapi
-      - uvicorn
-      - prometheus-client
-      - python-multipart
+      - -e .[dev,notebooks]

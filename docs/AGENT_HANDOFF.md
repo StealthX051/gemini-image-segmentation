@@ -1,8 +1,10 @@
 # Agent Handoff (Current State)
 
-Last updated: 2026-03-02.
+Last updated: 2026-04-22.
 
 ## Scope Of This File
+- Read `docs/ENGINEERING_QUICKSTART.md` first if you are starting cold.
+- Read `docs/SETUP.md` first if the task is about installation, environment repair, or fresh-clone reproducibility.
 - This file is an operational snapshot and may include point-in-time validation notes (run IDs, observed throttling, local smoke outcomes).
 - Documentation ownership map: `docs/DOCUMENTATION_MAP.md`.
 - Canonical behavior/contracts live in: `docs/ARCHITECTURE.md`, `docs/MANUSCRIPT_ALIGNMENT.md`, `docs/METHODS_CHANGELOG.md`, and `docs/BATCH_ORCHESTRATION.md`.
@@ -38,6 +40,8 @@ Last updated: 2026-03-02.
 
 ## Critical Gotchas
 - `.env` is not auto-loaded into shell process env vars by the CLI. Export env vars in the active shell before running.
+- In Codex automation, prefer `conda run -n gemini_seg ...` over `conda activate gemini_seg`.
+- The Windows convenience benchmark script `.\scripts\run_polyp_full_3x3_w10.ps1` auto-loads `.env` but writes `configs/benchmarks/polyp_full_w10.local.yaml`, which dirties the worktree.
 - Ignore rules do not affect already tracked files. If NanoBanana run artifacts were committed previously, untrack them once with `git rm --cached -r results_nanobanana artifacts_nanobanana`.
 - Replicate fairness discovery in batch uses the Replicate output model label (`replicate_model_version`) rather than the matrix display name.
 - Replicate preflight validates token presence but cannot validate account credits/billing state; runtime can still fail with `429` create-prediction throttling on unfunded accounts.
@@ -59,30 +63,15 @@ Last updated: 2026-03-02.
 - Canonical runnable command examples live in `README.md`; keep this handoff focused on behavior deltas and gotchas.
 
 ## Validation Snapshots
-- Historical validation snapshots (pinned run IDs, exact smoke command variants, and point-in-time metric highlights) are kept in `docs/VALIDATION_SNAPSHOTS.md`.
+- Historical validation snapshots (pinned run IDs, exact smoke command variants, and point-in-time metric highlights) are kept in `docs/history/VALIDATION_SNAPSHOTS.md`.
 
-## Key Files For New Agents
-- `README.md`
-- `docs/DOCUMENTATION_MAP.md`
-- `docs/VALIDATION_SNAPSHOTS.md` (only when you need pinned historical run IDs/metrics)
-- `docs/ARCHITECTURE.md`
-- `docs/BATCH_ORCHESTRATION.md`
-- `docs/MANUSCRIPT_ALIGNMENT.md`
-- `docs/GEMINI_CACHING.md`
-- `docs/METHODS_CHANGELOG.md`
-- `src/gemini_segmentation/cli.py`
-- `src/gemini_segmentation/batch.py`
-- `src/gemini_segmentation/models.py`
-- `src/gemini_segmentation/cache.py`
-- `src/gemini_segmentation/metrics.py`
-- `scripts/prepare_ima_plusplus.py`
-- `scripts/analyze_ima_plusplus_sensitivity.py`
-- `tests/test_cli.py`
-- `tests/test_batch.py`
-- `tests/test_metrics.py`
+## Doc Routing
+- For fast onboarding, use `AGENTS.md`, `docs/DOCUMENTATION_MAP.md`, and `docs/ENGINEERING_QUICKSTART.md`.
+- Read deeper docs only for the scope you are touching.
 
 ## NanoBanana Study Lane (2026-03-01)
 - New isolated package path: `src/nanobanana_segmentation/`.
+- Only read or use this section when the task is explicitly about NanoBanana.
 - Service entrypoint:
   - `uvicorn nanobanana_segmentation.service.main:app --host 0.0.0.0 --port 8000`
 - Study runner entrypoint:

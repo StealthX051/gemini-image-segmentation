@@ -1,6 +1,7 @@
 # Validation Snapshots
 
-Point-in-time operational validation notes live here to preserve reproducibility details without bloating day-to-day onboarding docs.
+History-only validation notes live here to preserve reproducibility details without bloating day-to-day onboarding docs.
+Do not treat this file as the current recommended workflow or current default configuration.
 
 ## Replicate Sa2VA Validation Snapshot (2026-02-19)
 

@@ -9,8 +9,15 @@ approval_policy = "on-request"
 
 project_doc_fallback_filenames = [
   "AGENTS.md",
+  "docs/DOCUMENTATION_MAP.md",
+  "docs/ENGINEERING_QUICKSTART.md",
+  "docs/SETUP.md",
   "README.md",
+  "docs/AGENT_HANDOFF.md",
   "CONTRIBUTING.md",
   "docs/ARCHITECTURE.md",
 ]
 project_doc_max_bytes = 65536
+
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"

@@ -1,4 +1,8 @@
-# Gemini Caching Notes
+# Gemini Caching Snapshot
+
+This is a dated operational snapshot, not a permanent source of truth for external provider capabilities.
+For repo behavior, defer to code plus `docs/ARCHITECTURE.md`.
+When current provider support matters, re-check the upstream provider docs.
 
 Verified on **2026-02-18** against official Gemini docs.
 

@@ -1,9 +1,18 @@
 # Contributing
 
 ## Development Environment
-- Preferred path: `conda env create -f environment.yml` then `conda activate gemini_seg`.
-- Install package in editable mode: `python -m pip install -e .`.
-- Install test/dev dependencies: `python -m pip install -r requirements-dev.txt`.
+- Create the Conda env: `conda env create -f environment.yml`.
+- For Codex or other non-interactive automation, prefer `conda run -n gemini_seg ...` instead of relying on `conda activate`.
+- `environment.yml` is the full fresh-clone Conda bootstrap path.
+- Refresh an existing env with the bootstrap script: `conda run -n gemini_seg python scripts/bootstrap_env.py`.
+- Alternative manual install: `conda run -n gemini_seg python -m pip install -e .[dev,notebooks]`.
+- Linux/macOS `venv` path: `python3 -m venv .venv && source .venv/bin/activate && python scripts/bootstrap_env.py`.
+- Verify interpreter when needed: `conda run -n gemini_seg python -c "import sys; print(sys.executable)"`.
+- CLI note: direct `python -m gemini_segmentation.cli ...` does not auto-load `.env`.
+- Wrapper note: `scripts/launch_batch.sh` and `scripts/run_polyp_full_3x3_w10.ps1` do auto-load `.env`.
+- Fresh clone setup guide: `docs/SETUP.md`.
+- Repo hygiene note: `.venv/`, `venv/`, `.tmp-bootstrap-venv/`, `.pytest_cache/`, and `__pycache__/` are local-only and gitignored.
+- Line-ending note: keep Python/YAML/Markdown/shell files as LF text and PowerShell scripts as CRLF text; let `.gitattributes` and `.editorconfig` do the work.
 
 ## Common Dependency Pitfall
 - If imports fail with `site-packages/docx.py` and `ModuleNotFoundError: No module named 'exceptions'`, the legacy `docx` package is installed instead of `python-docx`.
@@ -22,22 +31,24 @@
 - Legacy experiment notebooks: `notebooks/*.ipynb` (plus `ita_fitzpatrick_analysis.ipynb` currently at repo root).
 
 ## Local Validation
-- Full test run: `pytest -q`.
-- Prompt/CLI-focused checks: `pytest -q tests/test_prompts.py tests/test_cli.py`.
-- Batch-runner checks: `pytest -q tests/test_batch.py`.
-- Metrics-focused checks: `pytest -q tests/test_metrics.py`.
-- Provider adapter checks: `pytest -q tests/test_replicate_segmenter.py`.
-- Replicate parity checks: `pytest -q tests/test_replicate_segmenter.py tests/test_cli.py tests/test_batch.py tests/test_prompts.py`.
-- Paper/fairness artifact checks: `pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py`.
+- Full test run: `conda run -n gemini_seg pytest -q`.
+- Prompt/CLI-focused checks: `conda run -n gemini_seg pytest -q tests/test_prompts.py tests/test_cli.py`.
+- Batch-runner checks: `conda run -n gemini_seg pytest -q tests/test_batch.py`.
+- Metrics-focused checks: `conda run -n gemini_seg pytest -q tests/test_metrics.py`.
+- Provider adapter checks: `conda run -n gemini_seg pytest -q tests/test_replicate_segmenter.py`.
+- Replicate parity checks: `conda run -n gemini_seg pytest -q tests/test_replicate_segmenter.py tests/test_cli.py tests/test_batch.py tests/test_prompts.py`.
+- Paper/fairness artifact checks: `conda run -n gemini_seg pytest -q tests/test_paper.py tests/test_paper_figures.py tests/test_paper_best_cases.py`.
 
 ## Contribution Rules
 - Keep changes scoped to the task; avoid broad notebook JSON rewrites.
+- If deletion is the cleanest non-breaking fix, remove dead code, stale files, or redundant documentation instead of leaving them in place.
 - When changing CLI arguments, update parser/help behavior and `tests/test_cli.py`.
 - When changing prompt families or defaults, update both `src/gemini_segmentation/prompts.py` and `configs/prompts.yaml`.
 - For manuscript-facing method changes, update `docs/MANUSCRIPT_ALIGNMENT.md` in the same PR.
 - For any method-level change, add an entry to `docs/METHODS_CHANGELOG.md` in the same PR.
 - When changing output schemas or file names, update dependent paper/fairness code and tests.
-- For matrix orchestration changes, update `docs/BATCH_ORCHESTRATION.md`, `README.md`, and `llms.txt` in the same PR.
+- For matrix orchestration changes, update `docs/BATCH_ORCHESTRATION.md`, `README.md`, and `docs/ENGINEERING_QUICKSTART.md` when execution guidance changed.
+- For substantive changes, leave the relevant docs more accurate than you found them; do not defer obvious documentation drift.
 - Prefer adding tests for behavior changes rather than only updating documentation.
 
 ## Data and Secrets

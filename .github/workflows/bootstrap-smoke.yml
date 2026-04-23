@@ -1,0 +1,83 @@
+name: bootstrap-smoke
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  linux-venv-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Cairo runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2 libffi-dev
+
+      - name: Bootstrap editable environment
+        run: python scripts/bootstrap_env.py
+
+      - name: Smoke test imports and entry points
+        run: |
+          python -c "import gemini_segmentation, nanobanana_segmentation; from google import genai; import cairosvg, cv2, fastapi, moondream, replicate; print('imports ok')"
+          gemini-seg --help
+          nanobanana-study --help
+
+      - name: Run focused reproducibility tests
+        run: |
+          pytest -q \
+            tests/test_config.py \
+            tests/test_prompts.py \
+            tests/test_batch.py \
+            tests/test_metrics.py \
+            tests/nanobanana/test_study_config.py \
+            tests/nanobanana/test_service_api.py
+
+  windows-conda-smoke:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-activate-base: false
+          miniforge-version: latest
+
+      - name: Create Conda env from environment.yml
+        shell: bash
+        run: conda env create -f environment.yml
+
+      - name: Refresh editable install
+        shell: bash
+        run: conda run -n gemini_seg python scripts/bootstrap_env.py --skip-pip-upgrade
+
+      - name: Smoke test imports and module entry points
+        shell: bash
+        run: |
+          conda run -n gemini_seg python -c "import gemini_segmentation, nanobanana_segmentation; from google import genai; import cairosvg, cv2, fastapi, moondream, replicate; print('imports ok')"
+          conda run -n gemini_seg python -m gemini_segmentation.cli --help
+          conda run -n gemini_seg python -m nanobanana_segmentation.study.runner --help
+
+      - name: Run focused reproducibility tests
+        shell: bash
+        run: |
+          conda run -n gemini_seg pytest -q \
+            tests/test_config.py \
+            tests/test_prompts.py \
+            tests/test_batch.py \
+            tests/test_metrics.py \
+            tests/nanobanana/test_study_config.py \
+            tests/nanobanana/test_service_api.py

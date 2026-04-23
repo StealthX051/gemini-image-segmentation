@@ -10,10 +10,46 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [{name = "Project Contributors"}]
-dependencies = []
+dependencies = [
+    "numpy>=1.26,<2",
+    "pandas",
+    "pillow",
+    "pyyaml",
+    "scipy",
+    "scikit-image",
+    "matplotlib",
+    "scikit-learn",
+    "scikit-posthocs",
+    "python-dotenv",
+    "pingouin",
+    "cliffs-delta",
+    "opencv-python-headless",
+    "google-genai",
+    "replicate",
+    "moondream",
+    "cairosvg",
+    "python-docx",
+    "pyarrow",
+    "fastapi",
+    "uvicorn",
+    "prometheus-client",
+    "python-multipart",
+    "pydantic",
+]
+
+[project.scripts]
+gemini-seg = "gemini_segmentation.cli:main"
+nanobanana-study = "nanobanana_segmentation.study.runner:main"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "httpx",
+]
+notebooks = [
+    "jupyterlab",
+    "ipywidgets",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
